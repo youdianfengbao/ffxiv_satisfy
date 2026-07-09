@@ -1,4 +1,4 @@
-﻿using clib.TaskSystem;
+using clib.TaskSystem;
 using Dalamud.Plugin.Ipc;
 using System.Threading.Tasks;
 
@@ -22,18 +22,21 @@ public sealed class AutoGather(NPCInfo npc) : AutoCommon
         if (remainingTurnins - Game.NumItemsInInventory(npc.GatherData.GatherItemId, (short)npc.GatherData.CollectabilityLow) > 0)
             await Gather();
 
-        Status = "Teleporting back to Npc";
-        await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation);
+        Status = "传送回 Npc 处";
+        // 图莱尤拉(1185): 禁止同区域二次以太之光传送, 多层地图寻路会出错
+        await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation,
+            allowSameZoneTeleport: npc.TerritoryId != 1185);
 
-        Status = "Moving to Npc";
+        Status = "前往 Npc 处";
+        TrySprint();
         await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange);
-        Status = $"Turning in {remainingTurnins}x {ItemName(npc.TurnInItems[1])}";
+        Status = $"正在交付 {remainingTurnins}x {ItemName(npc.TurnInItems[1])}";
         await TurnIn(npc, 1);
     }
 
     private async Task Gather()
     {
-        Status = "Gathering with Questionable";
+        Status = "使用 Questionable 进行采集";
         using var scope = BeginScope("Gathering");
         using var stop = new OnDispose(() => _stop.InvokeFunc($"{Service.PluginInterface.Manifest.InternalName}"));
         ErrorIf(!_startGathering.InvokeFunc(npc.TurninId, npc.GatherData!.GatherItemId, (byte)npc.GatherData.ClassJobId, npc.RemainingTurnins(1), (ushort)npc.GatherData.CollectabilityHigh), "Unable to invoke Questionable");

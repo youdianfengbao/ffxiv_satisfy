@@ -44,9 +44,9 @@ public sealed class GatherData
     {
         return Plugin.Config.CraftJobType switch
         {
-            Config.JobChoice.Specific => Plugin.Config.SelectedGatherJob,
-            Config.JobChoice.Current => GetCurrentGatheringJob(),
-            Config.JobChoice.LowestXP => (Service.LuminaSheet<ClassJob>()?
+            Config.JobChoice.指定职业 => Plugin.Config.SelectedGatherJob,
+            Config.JobChoice.当前职业 => GetCurrentGatheringJob(),
+            Config.JobChoice.等级最低的职业 => (Service.LuminaSheet<ClassJob>()?
                 .Where(c => c.RowId is 16 or 17 &&
                     PlayerState.Instance() != null &&
                     c.ExpArrayIndex >= 0 &&
@@ -55,7 +55,7 @@ public sealed class GatherData
                 .OrderBy(c =>
                     PlayerState.Instance()->ClassJobLevels[c.ExpArrayIndex])
                 .FirstOrDefault())?.RowId ?? Plugin.Config.SelectedGatherJob,
-            Config.JobChoice.HighestXP => (Service.LuminaSheet<ClassJob>()?
+            Config.JobChoice.等级最高的职业 => (Service.LuminaSheet<ClassJob>()?
                 .Where(c => c.RowId is 16 or 17 &&
                     PlayerState.Instance() != null &&
                     c.ExpArrayIndex >= 0 &&

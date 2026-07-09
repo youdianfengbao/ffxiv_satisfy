@@ -16,25 +16,43 @@ public sealed class FishData
     public FishData(uint itemId)
     {
         FishItemId = itemId;
-        if (Service.LuminaSheet<FishingSpot>()!.FirstOrDefault(s => s.Item.Any(i => i.RowId == FishItemId)) is var fish && fish.RowId != 0)
+
+        // 尝试从 FishingSpot 表查找
+        var fishingSpots = Service.LuminaSheet<FishingSpot>();
+        if (fishingSpots != null)
         {
-            FishSpotId = fish.RowId;
-            TerritoryTypeId = fish.TerritoryType.RowId;
-            Center = Map.PixelCoordsToWorldCoords(fish.X, fish.Z, fish.TerritoryType.Value.Map.RowId);
-            Radius = fish.Radius;
+            var fish = fishingSpots.FirstOrDefault(s => s.Item.Any(i => i.RowId == FishItemId));
+            if (fish.RowId != 0)
+            {
+                FishSpotId = fish.RowId;
+                TerritoryTypeId = fish.TerritoryType.RowId;
+                Center = Map.PixelCoordsToWorldCoords(fish.X, fish.Z, fish.TerritoryType.Value.Map.RowId);
+                Radius = fish.Radius;
+                return;
+            }
         }
-        else if (Service.LuminaSheet<SpearfishingItem>()!.FirstOrDefault(s => s.Item.RowId == FishItemId) is var sfish && sfish.RowId != 0)
+
+        // 尝试从 SpearfishingItem 表查找
+        var spearItems = Service.LuminaSheet<SpearfishingItem>();
+        if (spearItems != null)
         {
-            IsSpearFish = true;
-            FishSpotId = sfish.TerritoryType.RowId;
-            var fishSpot = Service.LuminaRow<SpearfishingNotebook>(FishSpotId)!.Value;
-            TerritoryTypeId = fishSpot.TerritoryType.RowId;
-            Center = Map.PixelCoordsToWorldCoords(fishSpot.X, fishSpot.Y, fishSpot.TerritoryType.Value.Map.RowId);
-            Radius = fishSpot.Radius;
+            var sfish = spearItems.FirstOrDefault(s => s.Item.RowId == FishItemId);
+            if (sfish.RowId != 0)
+            {
+                IsSpearFish = true;
+                FishSpotId = sfish.TerritoryType.RowId;
+                var fishSpot = Service.LuminaRow<SpearfishingNotebook>(FishSpotId);
+                if (fishSpot != null)
+                {
+                    var spot = fishSpot.Value;
+                    TerritoryTypeId = spot.TerritoryType.RowId;
+                    Center = Map.PixelCoordsToWorldCoords(spot.X, spot.Y, spot.TerritoryType.Value.Map.RowId);
+                    Radius = spot.Radius;
+                    return;
+                }
+            }
         }
-        else
-        {
-            throw new Exception($"Failed to find fishing location for {itemId}");
-        }
+
+        throw new Exception($"Failed to find fishing location for {itemId}");
     }
 }

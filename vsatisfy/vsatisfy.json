@@ -1,8 +1,8 @@
 {
   "Author": "veyn",
   "Name": "vsatisfy",
-  "Punchline": "Automatic satisfaction.",
-  "Description": "Make custom deliveries less annoying by automating the process.",
+  "Punchline": "自动老主顾交付（制作/采集）",
+  "Description": "通过自动化流程减少老主顾交付的烦恼。\n所需插件：vnavmesh, Artisan, Questionable",
   "InternalName": "vsatisfy",
   "ApplicableVersion": "any",
   "Tags": ["Custom Deliveries", "Automation", "Satisfaction"]

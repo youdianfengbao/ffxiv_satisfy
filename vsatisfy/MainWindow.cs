@@ -1,6 +1,7 @@
 ﻿using clib.Services;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -20,6 +21,15 @@ public unsafe class MainWindow : Window, IDisposable
     private readonly List<NPCInfo> _npcs = [];
     private readonly List<(uint Currency, int Amount, int Count)> _rewards = [];
     private bool _wasLoaded;
+
+    private static readonly Dictionary<uint, string> CurrencyNames = new()
+    {
+        { 2, "巧手紫票" },
+        { 4, "大地紫票" },
+        { 6, "巧手橙票" },
+        { 7, "大地橙票" },
+        // 按需补充
+    };
 
     public MainWindow() : base("Satisfier")
     {
@@ -41,19 +51,20 @@ public unsafe class MainWindow : Window, IDisposable
                 _npcs.Add(new(npcData));
         }
 
-        // hardcoded stuff
-        //_npcs[0].InitHardcodedData(1784, 478);
-        //_npcs[1].InitHardcodedData(1979, 635);
-        //_npcs[2].InitHardcodedData(2077, 613);
-        //_npcs[3].InitHardcodedData(2193, 478);
-        //_npcs[4].InitHardcodedData(2435, 820);
-        //_npcs[5].InitHardcodedData(2633, 886);
-        //_npcs[6].InitHardcodedData(2845, 886);
-        //_npcs[7].InitHardcodedData(3069, 962);
-        //_npcs[8].InitHardcodedData(3173, 816);
-        //_npcs[9].InitHardcodedData(3361, 956);
-        //_npcs[10].InitHardcodedData(3602, 1190);
-        //_npcs[11].InitHardcodedData(3996, 1185);
+        // hardcoded achievement ids (TerritoryId comes from game data via NPCInfo constructor)
+        // territory is only used as fallback if game data is missing
+        _npcs[0].InitHardcodedData(1784, 478);
+        _npcs[1].InitHardcodedData(1979, 635);
+        _npcs[2].InitHardcodedData(2077, 613);
+        _npcs[3].InitHardcodedData(2193, 478);
+        _npcs[4].InitHardcodedData(2435, 820);
+        _npcs[5].InitHardcodedData(2633, 886);
+        _npcs[6].InitHardcodedData(2845, 886);
+        _npcs[7].InitHardcodedData(3069, 962);
+        _npcs[8].InitHardcodedData(3173, 816);
+        _npcs[9].InitHardcodedData(3361, 956);
+        _npcs[10].InitHardcodedData(3602, 1190);
+        _npcs[11].InitHardcodedData(3996, 1185);
 
         if (_npcs.Any(n => n.AchievementId is 0 || n.TerritoryId is 0))
             Service.Log.Warning("Some NPCs are missing hardcoded data. Please report this on GitHub.");
@@ -94,7 +105,7 @@ public unsafe class MainWindow : Window, IDisposable
             DrawCurrenciesTable();
         }
 
-        if (Plugin.Config.ShowDebugUI && ImGui.CollapsingHeader("Debug data"))
+        if (Plugin.Config.ShowDebugUI && ImGui.CollapsingHeader("调试"))
             DrawDebug();
     }
 
@@ -203,20 +214,21 @@ public unsafe class MainWindow : Window, IDisposable
 
     private void DrawMainTable()
     {
+        ImGui.TextColored(ImGuiColors.DalamudOrange, "注意：此插件依赖 vnavmesh 寻路、 Artisan 进行制作、Questionable 进行采集，如果你已安装，请忽略本提示。");
         using (ImRaii.Disabled(!Svc.Automation.Running))
-            if (ImGui.Button("Stop current task"))
+            if (ImGui.Button("停止当前任务"))
                 Svc.Automation.Stop();
         ImGui.SameLine();
-        ImGui.Text($"Status: {Svc.Automation.CurrentTask?.Status ?? "idle"}");
+        ImGui.Text($"状态: {Svc.Automation.CurrentTask?.Status ?? "空闲"}");
 
         using var table = ImRaii.Table("main_table", 5);
         if (!table)
             return;
         ImGui.TableSetupColumn("NPC", ImGuiTableColumnFlags.WidthFixed, 100);
-        ImGui.TableSetupColumn("Bonuses", ImGuiTableColumnFlags.WidthFixed, 90);
-        ImGui.TableSetupColumn("Deliveries", ImGuiTableColumnFlags.WidthFixed, 120);
-        ImGui.TableSetupColumn("Achievement (weeks)", ImGuiTableColumnFlags.WidthFixed, 120);
-        ImGui.TableSetupColumn("Actions");
+        ImGui.TableSetupColumn("奖励加成", ImGuiTableColumnFlags.WidthFixed, 90);
+        ImGui.TableSetupColumn("交付次数", ImGuiTableColumnFlags.WidthFixed, 120);
+        ImGui.TableSetupColumn("成就 (周)", ImGuiTableColumnFlags.WidthFixed, 120);
+        ImGui.TableSetupColumn("操作");
         ImGui.TableHeadersRow();
         foreach (var npc in _npcs)
         {
@@ -256,10 +268,10 @@ public unsafe class MainWindow : Window, IDisposable
         using var table = ImRaii.Table("currencies_table", 4);
         if (!table)
             return;
-        ImGui.TableSetupColumn("Currency", ImGuiTableColumnFlags.WidthFixed, 180);
-        ImGui.TableSetupColumn("Current", ImGuiTableColumnFlags.WidthFixed, 80);
-        ImGui.TableSetupColumn("Max gain", ImGuiTableColumnFlags.WidthFixed, 80);
-        ImGui.TableSetupColumn("Overcap", ImGuiTableColumnFlags.WidthFixed, 80);
+        ImGui.TableSetupColumn("货币", ImGuiTableColumnFlags.WidthFixed, 180);
+        ImGui.TableSetupColumn("当前", ImGuiTableColumnFlags.WidthFixed, 80);
+        ImGui.TableSetupColumn("最大收益", ImGuiTableColumnFlags.WidthFixed, 80);
+        ImGui.TableSetupColumn("溢出", ImGuiTableColumnFlags.WidthFixed, 80);
         ImGui.TableHeadersRow();
         var cm = CurrencyManager.Instance();
         foreach (var reward in _rewards)
@@ -270,7 +282,11 @@ public unsafe class MainWindow : Window, IDisposable
             var gain = reward.Amount * reward.Count;
 
             ImGui.TableNextColumn();
-            ImGui.Text($"[{reward.Currency}] {Service.LuminaRow<Item>(currItemId)?.Name}");
+            var name = CurrencyNames.TryGetValue(reward.Currency, out var fixedName)
+                ? fixedName
+                : Service.LuminaRow<Item>(currItemId)?.Name.ToString() ?? "Unknown";
+
+            ImGui.Text($"[{reward.Currency}] {name}");
 
             ImGui.TableNextColumn();
             ImGui.Text($"{count}");
@@ -286,7 +302,7 @@ public unsafe class MainWindow : Window, IDisposable
 
     private void DrawDebug()
     {
-        if (ImGui.Button("Reset achievement data"))
+        if (ImGui.Button("重置成就数据"))
             foreach (var npc in _npcs)
                 npc.AchievementStart = npc.AchievementMax = 0;
 
@@ -313,9 +329,10 @@ public unsafe class MainWindow : Window, IDisposable
             static string locationString(uint territory, Vector3 pos)
             {
                 var aetheryte = Map.FindClosestAetheryte(territory, pos);
-                var aetheryteRow = Service.LuminaRow<Aetheryte>(aetheryte)!.Value;
-                var aetheryteName = aetheryteRow.AethernetName.RowId != 0 ? aetheryteRow.AethernetName.Value : aetheryteRow.PlaceName.Value;
-                return $"{territory} '{Service.LuminaRow<TerritoryType>(territory)!.Value.Name}' {pos} near {aetheryte} '{aetheryteName.Name}'";
+                var aetheryteRow = Service.LuminaRow<Aetheryte>(aetheryte);
+                var aetheryteName = aetheryteRow?.AethernetName.RowId != 0 ? aetheryteRow?.AethernetName.Value : aetheryteRow?.PlaceName.Value;
+                var territoryName = Service.LuminaRow<TerritoryType>(territory)?.Name.ToString() ?? "???";
+                return $"{territory} '{territoryName}' {pos} near {aetheryte} '{aetheryteName?.Name}'";
             }
             if (npc.CraftData != null)
             {
@@ -367,13 +384,13 @@ public unsafe class MainWindow : Window, IDisposable
         if (remainingTurnins <= 0)
             return;
 
-        if (ImGui.Button("Auto craft turnin"))
+        if (ImGui.Button("自动制作交付"))
             Svc.Automation.Start(new AutoCraft(npc));
         ImGui.SameLine();
-        if (ImGui.Button("Auto gather turnin"))
+        if (ImGui.Button("自动采集交付"))
             Svc.Automation.Start(new AutoGather(npc));
         ImGui.SameLine();
-        if (ImGui.Button("Auto fish turnin"))
+        if (ImGui.Button("自动钓鱼交付"))
             Svc.Automation.Start(new AutoFish(npc));
     }
 

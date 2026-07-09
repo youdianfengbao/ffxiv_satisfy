@@ -1,6 +1,7 @@
 using clib.Extensions;
 using clib.TaskSystem;
 using Dalamud.Game.ClientState.Conditions;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using System.Threading.Tasks;
 
 namespace Satisfy;
@@ -8,6 +9,16 @@ namespace Satisfy;
 // common automation utilities
 public abstract class AutoCommon : TaskBase
 {
+    /// <summary>尝试使用冲刺, 冷却中则忽略</summary>
+    protected static void TrySprint()
+    {
+        unsafe
+        {
+            if (ActionManager.Instance()->GetActionStatus(ActionType.GeneralAction, 4) == 0)
+                ActionManager.Instance()->UseAction(ActionType.GeneralAction, 4);
+        }
+    }
+
     protected async Task TurnIn(NPCInfo npc, int slot)
     {
         using var scope = BeginScope("TurnIn");
@@ -15,15 +26,12 @@ public abstract class AutoCommon : TaskBase
 
         if (!Game.IsTurnInSupplyInProgress(npc))
         {
-            if (Service.Objects.TryGetByGameObjectId(npc.CraftData.TurnInInstanceId, out var obj))
-                await InteractWith(obj, waitUntil: () => Game.IsTurnInSupplyInProgress(npc), selectStringIndex: 0, skip: UiSkipOptions.Talk);
-            else
-                Warning($"Unable to interact with {npc.Name}#{npc.CraftData.TurnInInstanceId}");
+            ErrorIf(!Game.InteractWith(npc.CraftData.TurnInInstanceId), "Failed to interact with turn-in NPC");
+            await WaitUntilSkipping(() => Game.IsTurnInSupplyInProgress(npc), "WaitDialog", UiSkipOptions.Talk);
         }
-        ErrorIf(!Game.IsTurnInSupplyInProgress(npc), "");
         while (npc.RemainingTurnins(slot) > 0)
         {
-            Status = "Turning in";
+            Status = "交付中";
             await WaitUntilSkipping(() => npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInSupplyInProgress(npc), "WaitDialog", UiSkipOptions.Talk);
             if (npc.RemainingTurnins(slot) <= 0)
                 break;
@@ -40,7 +48,7 @@ public abstract class AutoCommon : TaskBase
     protected async Task WaitForCutscene()
     {
         using var scope = BeginScope(nameof(WaitForCutscene));
-        Status = "Wait for CS";
+        Status = "等待过场动画";
         await WaitUntilSkipping(() => Service.Conditions[ConditionFlag.OccupiedInCutSceneEvent], "WaitCutsceneStart", UiSkipOptions.Talk);
         await WaitUntilSkipping(() => !Service.Conditions[ConditionFlag.OccupiedInCutSceneEvent], "WaitCutsceneEnd", UiSkipOptions.Talk);
     }

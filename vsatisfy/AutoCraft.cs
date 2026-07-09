@@ -30,23 +30,49 @@ public sealed class AutoCraft(NPCInfo npc) : AutoCommon
             var missingIngredients = requiredIngredients - Game.NumItemsInInventory(ingredient.id, 0);
             if (missingIngredients > 0)
             {
-                Status = $"Buying {missingIngredients}x {ItemName(ingredient.id)}";
+                Status = $"购买素材 {missingIngredients}x {ItemName(ingredient.id)}";
                 if (Service.ClientState.TerritoryType == npc.TerritoryId)
+                {
+                    TrySprint();
                     await MoveTo(npc.CraftData.VendorLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+                }
+                else if (npc.TerritoryId == 1185)
+                {
+                    // 图莱尤拉: 禁止同区域二次以太之光传送, 否则多层地图寻路会出错
+                    await TeleportTo(npc.TerritoryId, npc.CraftData.VendorLocation, allowSameZoneTeleport: false);
+                    TrySprint();
+                    await MoveTo(npc.CraftData.VendorLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+                }
                 else
+                {
+                    TrySprint();
                     await MoveTo(npc.TerritoryId, npc.CraftData.VendorLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernetWithinTerritory: false);
+                }
                 await Dismount();
                 await BuyFromShop(npc.CraftData.VendorInstanceId, npc.CraftData.VendorShopId, ingredient.id, missingIngredients);
             }
-            Status = $"Crafting {remainingCrafts}x {ItemName(turnInItemId)}";
+            Status = $"制作 {remainingCrafts}x {ItemName(turnInItemId)}";
             await CraftItem(turnInItemId, remainingCrafts, remainingTurnins);
         }
 
-        Status = $"Turning in {remainingTurnins}x {ItemName(turnInItemId)}";
+        Status = $"正在交付 {remainingTurnins}x {ItemName(turnInItemId)}";
         if (Service.ClientState.TerritoryType == npc.TerritoryId)
+        {
+            TrySprint();
             await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+        }
+        else if (npc.TerritoryId == 1185)
+        {
+            // 图莱尤拉: 禁止同区域二次以太之光传送, 否则多层地图寻路会出错
+            await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation, allowSameZoneTeleport: false);
+            TrySprint();
+            await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+        }
         else
+        {
+            TrySprint();
             await MoveTo(npc.TerritoryId, npc.CraftData.TurnInLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernetWithinTerritory: false);
+        }
         await TurnIn(npc, 0);
     }
 

@@ -37,9 +37,8 @@ public record class NPCInfo
         Name = Row.Npc.Value.Singular.ToString();
         MaxDeliveries = Row.DeliveriesPerWeek;
         SupplyIndices = [.. Row.SatisfactionNpcParams.Select(p => p.SupplyIndex)];
-        TerritoryId = Row.Level.Value.Territory.RowId;
-        AchievementId = Row.Achievement.RowId;
-        CraftData = new((uint)SupplyIndices[1], TurninId, TerritoryId);
+        // TerritoryId from game data (may be 0 in some client versions, fall back to InitHardcodedData)
+        TerritoryId = Row.Level.ValueNullable?.Territory.RowId ?? 0;
     }
 
     public uint SupplyIndex => (uint)SupplyIndices[Rank];
@@ -49,8 +48,9 @@ public record class NPCInfo
     public void InitHardcodedData(uint achievementId, uint territoryId)
     {
         AchievementId = achievementId;
-        TerritoryId = territoryId;
-        CraftData = new((uint)SupplyIndices[1], TurninId, TerritoryId);
+        if (TerritoryId == 0)
+            TerritoryId = territoryId;
+        CraftData ??= new((uint)SupplyIndices[1], TurninId, TerritoryId);
     }
 
     public int RemainingTurnins(int requestIndex)

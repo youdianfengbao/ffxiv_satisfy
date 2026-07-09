@@ -1,5 +1,6 @@
-﻿using Dalamud.Interface.Utility.Raii;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Bindings.ImGui;
+using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -14,19 +15,52 @@ public sealed class Config
     public bool AutoFetchAchievements = true;
     public bool AutoShowIfIncomplete = true;
     public bool ShowDebugUI = false;
-    public JobChoice CraftJobType = JobChoice.Specific;
+    public JobChoice CraftJobType = JobChoice.指定职业;
     public uint SelectedCraftJob = 8;
     public uint SelectedGatherJob = 16;
 
-    private readonly (uint rowId, string name)[] _craftJobs = [.. Service.LuminaSheet<Lumina.Excel.Sheets.ClassJob>()!.Where(c => c.ClassJobCategory.RowId == 33).Select(c => (c.RowId, c.Name.ToString()))];
-    private readonly (uint rowId, string name)[] _gatherJobs = [.. Service.LuminaSheet<Lumina.Excel.Sheets.ClassJob>()!.Where(c => c.RowId is 16 or 17).Select(c => (c.RowId, c.Name.ToString()))];
+    private (uint rowId, string name)[]? _craftJobs;
+    private (uint rowId, string name)[] CraftJobs
+    {
+        get
+        {
+            if (_craftJobs != null)
+                return _craftJobs;
+            var sheet = Service.LuminaGameData?.GetExcelSheet<Lumina.Excel.Sheets.ClassJob>();
+            if (sheet != null)
+            {
+                _craftJobs = [.. sheet.Where(c => c.ClassJobCategory.RowId == 33).Select(c => (c.RowId, c.Name.ToString()))];
+            }
+            return _craftJobs ?? [];
+        }
+    }
+
+    private (uint rowId, string name)[]? _gatherJobs;
+    private (uint rowId, string name)[] GatherJobs
+    {
+        get
+        {
+            if (_gatherJobs != null)
+                return _gatherJobs;
+            var sheet = Service.LuminaGameData?.GetExcelSheet<Lumina.Excel.Sheets.ClassJob>();
+            if (sheet != null)
+            {
+                _gatherJobs = [.. sheet.Where(c => c.RowId is 16 or 17).Select(c => (c.RowId, c.Name.ToString()))];
+            }
+            return _gatherJobs ?? [];
+        }
+    }
 
     public enum JobChoice
     {
-        Specific,
-        Current,
-        LowestXP,
-        HighestXP,
+        [Description("指定职业")]
+        指定职业,
+        [Description("当前职业")]
+        当前职业,
+        [Description("经验最低")]
+        等级最低的职业,
+        [Description("经验最高")]
+        等级最高的职业,
     }
 
     public event Action? Modified;
@@ -35,39 +69,41 @@ public sealed class Config
 
     public void Draw()
     {
-        if (ImGui.Checkbox("Automatically fetch achievements state when showing the window", ref AutoFetchAchievements))
+        if (ImGui.Checkbox("打开窗口时自动获取成就数据", ref AutoFetchAchievements))
             NotifyModified();
-        if (ImGui.Checkbox("Automatically open window on login if deliveries aren't complete", ref AutoShowIfIncomplete))
+        if (ImGui.Checkbox("如果限额未用完则在登录时自动打开窗口", ref AutoShowIfIncomplete))
             NotifyModified();
-        if (ImGui.Checkbox("Show debug UI", ref ShowDebugUI))
+        if (ImGui.Checkbox("开启 Debug", ref ShowDebugUI))
             NotifyModified();
-        if (ImGuiUtils.Enum("Job choice", ref CraftJobType))
+        if (ImGuiUtils.Enum("职业选择", ref CraftJobType))
             NotifyModified();
-        if (CraftJobType == JobChoice.Specific)
+        if (CraftJobType == JobChoice.指定职业)
         {
-            using (var craftCombo = ImRaii.Combo("Specific crafter", _craftJobs.Single(c => c.rowId == SelectedCraftJob).name))
+            var craftSelected = CraftJobs.FirstOrDefault(c => c.rowId == SelectedCraftJob);
+            using (var craftCombo = ImRaii.Combo("指定制作职业", CraftJobs.Length > 0 ? craftSelected.name : "加载中..."))
             {
                 if (craftCombo)
                 {
-                    for (var i = 0; i < _craftJobs.Length; ++i)
+                    for (var i = 0; i < CraftJobs.Length; ++i)
                     {
-                        if (ImGui.Selectable(_craftJobs[i].name, SelectedCraftJob == _craftJobs[i].rowId))
+                        if (ImGui.Selectable(CraftJobs[i].name, SelectedCraftJob == CraftJobs[i].rowId))
                         {
-                            SelectedCraftJob = _craftJobs[i].rowId;
+                            SelectedCraftJob = CraftJobs[i].rowId;
                             NotifyModified();
                         }
                     }
                 }
             }
 
-            using var gatherCombo = ImRaii.Combo("Specific gatherer", _gatherJobs.Single(c => c.rowId == SelectedGatherJob).name);
+            var gatherSelected = GatherJobs.FirstOrDefault(c => c.rowId == SelectedGatherJob);
+            using var gatherCombo = ImRaii.Combo("指定采集职业", GatherJobs.Length > 0 ? gatherSelected.name : "加载中...");
             if (gatherCombo)
             {
-                for (var i = 0; i < _gatherJobs.Length; ++i)
+                for (var i = 0; i < GatherJobs.Length; ++i)
                 {
-                    if (ImGui.Selectable(_gatherJobs[i].name, SelectedGatherJob == _gatherJobs[i].rowId))
+                    if (ImGui.Selectable(GatherJobs[i].name, SelectedGatherJob == GatherJobs[i].rowId))
                     {
-                        SelectedGatherJob = _gatherJobs[i].rowId;
+                        SelectedGatherJob = GatherJobs[i].rowId;
                         NotifyModified();
                     }
                 }

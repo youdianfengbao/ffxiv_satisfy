@@ -1,4 +1,4 @@
-﻿using clib.TaskSystem;
+using clib.TaskSystem;
 using Lumina.Excel.Sheets;
 using System.Threading.Tasks;
 
@@ -21,22 +21,26 @@ public sealed class AutoFish(NPCInfo npc) : AutoCommon
         var remainingFish = remainingTurnins - Game.NumItemsInInventory(turnInItemId, 1);
         if (remainingFish > 0)
         {
-            Status = "Teleporting to fish zone";
+            Status = "前往渔点";
             await TeleportTo(npc.FishData.TerritoryTypeId, npc.FishData.Center);
 
             // TODO: improve move-to destination (ideally closest point where you can actually fish...)
             if (npc.FishData.IsSpearFish)
-                Status = $"Spearfishing at {Service.LuminaRow<SpearfishingNotebook>(npc.FishData.FishSpotId)?.PlaceName.ValueNullable?.Name}";
+                Status = $"刺鱼 at {Service.LuminaRow<SpearfishingNotebook>(npc.FishData.FishSpotId)?.PlaceName.ValueNullable?.Name}";
             else
-                Status = $"Fishing at {Service.LuminaRow<FishingSpot>(npc.FishData.FishSpotId)?.PlaceName.ValueNullable?.Name}";
+                Status = $"钓鱼 at {Service.LuminaRow<FishingSpot>(npc.FishData.FishSpotId)?.PlaceName.ValueNullable?.Name}";
+            TrySprint();
             await MoveTo(npc.FishData.Center, MovementConfig.Everything.WithTolerance(10));
         }
         else // TODO: full auto...
         {
-            Status = "Teleporting to turn-in zone";
-            await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation);
+            Status = "前往交付地";
+            // 图莱尤拉(1185): 禁止同区域二次以太之光传送
+            await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation,
+                allowSameZoneTeleport: npc.TerritoryId != 1185);
 
-            Status = $"Turning in {remainingTurnins}x {ItemName(turnInItemId)}";
+            Status = $"正在交付 {remainingTurnins}x {ItemName(turnInItemId)}";
+            TrySprint();
             await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange);
             await TurnIn(npc, 2);
         }
