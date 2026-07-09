@@ -45,8 +45,9 @@ public sealed class AutoCraft(NPCInfo npc) : AutoCommon
                 }
                 else
                 {
+                    await TeleportTo(npc.TerritoryId, npc.CraftData.VendorLocation, allowSameZoneTeleport: false);
                     TrySprint();
-                    await MoveTo(npc.TerritoryId, npc.CraftData.VendorLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernetWithinTerritory: false);
+                    await MoveTo(npc.CraftData.VendorLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
                 }
                 await Dismount();
                 await BuyFromShop(npc.CraftData.VendorInstanceId, npc.CraftData.VendorShopId, ingredient.id, missingIngredients);
@@ -70,8 +71,9 @@ public sealed class AutoCraft(NPCInfo npc) : AutoCommon
         }
         else
         {
+            await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation, allowSameZoneTeleport: false);
             TrySprint();
-            await MoveTo(npc.TerritoryId, npc.CraftData.TurnInLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernetWithinTerritory: false);
+            await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
         }
         await TurnIn(npc, 0);
     }
