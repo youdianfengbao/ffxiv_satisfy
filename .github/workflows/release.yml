@@ -1,0 +1,60 @@
+name: Publish Release
+on:
+  push:
+    tags:
+      - '*-cn'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+
+jobs:
+  Build:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Get Environment Variables
+        run: |
+          $tag = "${{ github.ref }}" -replace 'refs/tags/', ''
+          $version = $tag -replace '-cn$', ''
+
+          "tag=$tag" | Out-File -Append -FilePath $Env:GITHUB_ENV
+          "version=$version" | Out-File -Append -FilePath $Env:GITHUB_ENV
+          Write-Host "tag: $tag"
+          Write-Host "version: $version"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download Dalamud Latest
+        run: |
+          Invoke-WebRequest -Uri https://raw.githubusercontent.com/ottercorp/dalamud-distrib/main/stg/latest.zip -OutFile latest.zip
+          Expand-Archive -Force latest.zip -DestinationPath "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+      - name: Build Plugin
+        run: dotnet build -c Release vsatisfy/vsatisfy.csproj -p:Version=${{ env.version }} -p:AssemblyVersion=${{ env.version }} -p:FileVersion=${{ env.version }} -p:PackageVersion=${{ env.version }} -p:InformationalVersion=${{ env.tag }}
+
+      - name: Package Release Asset
+        run: Compress-Archive -Force -Path vsatisfy/bin/x64/Release/* -DestinationPath latest.zip
+
+      - name: Publish Plugin
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.tag }}
+          name: ${{ env.tag }}
+          files: latest.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
