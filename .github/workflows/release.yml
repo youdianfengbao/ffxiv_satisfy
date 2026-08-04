@@ -47,7 +47,7 @@ jobs:
         run: dotnet build -c Release vsatisfy/vsatisfy.csproj -p:Version=${{ env.version }} -p:AssemblyVersion=${{ env.version }} -p:FileVersion=${{ env.version }} -p:PackageVersion=${{ env.version }} -p:InformationalVersion=${{ env.tag }}
 
       - name: Package Release Asset
-        run: Compress-Archive -Force -Path vsatisfy/bin/x64/Release/* -DestinationPath latest.zip
+        run: Compress-Archive -Force -Path vsatisfy/bin/Release/* -DestinationPath latest.zip
 
       - name: Publish Plugin
         uses: softprops/action-gh-release@v2
