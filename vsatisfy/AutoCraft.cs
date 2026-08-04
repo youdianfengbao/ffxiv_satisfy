@@ -34,20 +34,20 @@ public sealed class AutoCraft(NPCInfo npc) : AutoCommon
                 if (Service.ClientState.TerritoryType == npc.TerritoryId)
                 {
                     TrySprint();
-                    await MoveTo(npc.CraftData.VendorLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+                    await MoveToDestination(npc.CraftData.VendorLocation);
                 }
                 else if (npc.TerritoryId == 1185)
                 {
                     // 图莱尤拉: 禁止同区域二次以太之光传送, 否则多层地图寻路会出错
                     await TeleportTo(npc.TerritoryId, npc.CraftData.VendorLocation, allowSameZoneTeleport: false);
                     TrySprint();
-                    await MoveTo(npc.CraftData.VendorLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+                    await MoveToDestination(npc.CraftData.VendorLocation);
                 }
                 else
                 {
                     await TeleportTo(npc.TerritoryId, npc.CraftData.VendorLocation, allowSameZoneTeleport: false);
                     TrySprint();
-                    await MoveTo(npc.CraftData.VendorLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+                    await MoveToDestination(npc.CraftData.VendorLocation);
                 }
                 await Dismount();
                 await BuyFromShop(npc.CraftData.VendorInstanceId, npc.CraftData.VendorShopId, ingredient.id, missingIngredients);
@@ -60,20 +60,20 @@ public sealed class AutoCraft(NPCInfo npc) : AutoCommon
         if (Service.ClientState.TerritoryType == npc.TerritoryId)
         {
             TrySprint();
-            await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+            await MoveToDestination(npc.CraftData.TurnInLocation);
         }
         else if (npc.TerritoryId == 1185)
         {
             // 图莱尤拉: 禁止同区域二次以太之光传送, 否则多层地图寻路会出错
             await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation, allowSameZoneTeleport: false);
             TrySprint();
-            await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+            await MoveToDestination(npc.CraftData.TurnInLocation);
         }
         else
         {
             await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation, allowSameZoneTeleport: false);
             TrySprint();
-            await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange, allowTeleportIfFaster: false, allowAethernet: false);
+            await MoveToDestination(npc.CraftData.TurnInLocation);
         }
         await TurnIn(npc, 0);
     }

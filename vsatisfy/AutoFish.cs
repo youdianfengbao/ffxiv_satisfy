@@ -30,7 +30,7 @@ public sealed class AutoFish(NPCInfo npc) : AutoCommon
             else
                 Status = $"钓鱼 at {Service.LuminaRow<FishingSpot>(npc.FishData.FishSpotId)?.PlaceName.ValueNullable?.Name}";
             TrySprint();
-            await MoveTo(npc.FishData.Center, MovementConfig.Everything.WithTolerance(10));
+            await MoveToDestination(npc.FishData.Center, 10f, allowFly: true);
         }
         else // TODO: full auto...
         {
@@ -41,7 +41,7 @@ public sealed class AutoFish(NPCInfo npc) : AutoCommon
 
             Status = $"正在交付 {remainingTurnins}x {ItemName(turnInItemId)}";
             TrySprint();
-            await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange);
+            await MoveToDestination(npc.CraftData.TurnInLocation);
             await TurnIn(npc, 2);
         }
     }

@@ -29,7 +29,7 @@ public sealed class AutoGather(NPCInfo npc) : AutoCommon
 
         Status = "前往 Npc 处";
         TrySprint();
-        await MoveTo(npc.CraftData.TurnInLocation, MovementConfig.InteractRange);
+        await MoveToDestination(npc.CraftData.TurnInLocation);
         Status = $"正在交付 {remainingTurnins}x {ItemName(npc.TurnInItems[1])}";
         await TurnIn(npc, 1);
     }
