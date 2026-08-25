@@ -36,29 +36,91 @@ public abstract class AutoCommon : TaskBase
         using var scope = BeginScope("TurnIn");
         if (npc.CraftData is null || npc.RemainingTurnins(slot) is 0) return;
 
+        // 第一次交互：与 NPC 交互并等待 SelectString 或 Supply 界面打开（最多重试 3 次）
         if (!Game.IsTurnInSupplyInProgress(npc))
         {
-            ErrorIf(!Game.InteractWith(npc.CraftData.TurnInInstanceId), "Failed to interact with turn-in NPC");
-            // 跳过 Talk 对话；等待提交界面打开或对话选项菜单弹出
-            await WaitUntilSkipping(() => Game.IsTurnInSupplyInProgress(npc) || Game.IsSelectStringAddonActive(), "WaitDialog", UiSkipOptions.Talk);
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                ErrorIf(!Game.InteractWith(npc.CraftData.TurnInInstanceId), "Failed to interact with turn-in NPC");
+
+                // 等待 SelectString 或 Supply 界面打开（15 秒超时）
+                var deadline = Environment.TickCount64 + 15000;
+                while (Environment.TickCount64 < deadline)
+                {
+                    CancelToken.ThrowIfCancellationRequested();
+                    Game.SkipTalk();
+                    if (Game.IsTurnInSupplyInProgress(npc) || Game.IsSelectStringAddonActive())
+                        break;
+                    await Task.Delay(250, CancelToken);
+                }
+
+                if (Game.IsTurnInSupplyInProgress(npc) || Game.IsSelectStringAddonActive())
+                    break;
+
+                Service.Log.Warning($"TurnIn: 等待对话框超时（尝试 {attempt}/3），重试交互");
+            }
+
+            if (!Game.IsTurnInSupplyInProgress(npc) && !Game.IsSelectStringAddonActive())
+                throw new Exception("TurnIn: 超过重试次数仍无法打开对话框");
+
             // 若弹出对话选项菜单，选择第一项（交换道具）
             if (Game.IsSelectStringAddonActive())
             {
                 Game.SelectTurnIn();
-                await WaitUntilSkipping(() => Game.IsTurnInSupplyInProgress(npc), "WaitDialog", UiSkipOptions.Talk);
+
+                // 等待 Supply 界面打开（15 秒超时）
+                var deadline = Environment.TickCount64 + 15000;
+                while (Environment.TickCount64 < deadline)
+                {
+                    CancelToken.ThrowIfCancellationRequested();
+                    Game.SkipTalk();
+                    if (Game.IsTurnInSupplyInProgress(npc))
+                        break;
+                    await Task.Delay(250, CancelToken);
+                }
+
+                if (!Game.IsTurnInSupplyInProgress(npc))
+                    throw new Exception("TurnIn: 选择对话框选项后超时无法打开 Supply 界面");
             }
         }
+
         while (npc.RemainingTurnins(slot) > 0)
         {
             Status = "交付中";
-            await WaitUntilSkipping(() => npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInSupplyInProgress(npc), "WaitDialog", UiSkipOptions.Talk);
+
+            // 等待 Supply 界面就绪（15 秒超时）
+            var deadline = Environment.TickCount64 + 15000;
+            while (Environment.TickCount64 < deadline)
+            {
+                CancelToken.ThrowIfCancellationRequested();
+                Game.SkipTalk();
+                if (npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInSupplyInProgress(npc))
+                    break;
+                await Task.Delay(250, CancelToken);
+            }
+
             if (npc.RemainingTurnins(slot) <= 0)
                 break;
 
+            if (!Game.IsTurnInSupplyInProgress(npc))
+                throw new Exception("TurnIn: Supply 界面未就绪，无法继续交付");
+
             Game.TurnInSupply(slot);
-            await WaitWhile(() => npc.RemainingTurnins(slot) > 0 && !Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]), "WaitHandIn");
+
+            // 等待交付完成（30 秒超时）
+            deadline = Environment.TickCount64 + 30000;
+            while (Environment.TickCount64 < deadline)
+            {
+                CancelToken.ThrowIfCancellationRequested();
+                if (npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]))
+                    break;
+                await Task.Delay(250, CancelToken);
+            }
+
             if (Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]))
                 Game.TurnInRequestCommit(slot);
+            else if (npc.RemainingTurnins(slot) > 0)
+                throw new Exception("TurnIn: WaitHandIn 超时，交付请求未正常触发");
         }
 
         await WaitForCutscene();

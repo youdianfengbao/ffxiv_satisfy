@@ -22,6 +22,10 @@ public sealed class AutoGather(NPCInfo npc) : AutoCommon
         if (remainingTurnins - Game.NumItemsInInventory(npc.GatherData.GatherItemId, (short)npc.GatherData.CollectabilityLow) > 0)
             await Gather();
 
+        // Questionable 可能顺带把交付做完，如果已交付完成则直接结束
+        if (npc.RemainingTurnins(1) <= 0)
+            return;
+
         Status = "传送回 Npc 处";
         // 图莱尤拉(1185): 禁止同区域二次以太之光传送, 多层地图寻路会出错
         await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation,
@@ -40,7 +44,25 @@ public sealed class AutoGather(NPCInfo npc) : AutoCommon
         using var scope = BeginScope("Gathering");
         using var stop = new OnDispose(() => _stop.InvokeFunc($"{Service.PluginInterface.Manifest.InternalName}"));
         ErrorIf(!_startGathering.InvokeFunc(npc.TurninId, npc.GatherData!.GatherItemId, (byte)npc.GatherData.ClassJobId, npc.RemainingTurnins(1), (ushort)npc.GatherData.CollectabilityHigh), "Unable to invoke Questionable");
-        await WaitWhile(() => !_isRunning.InvokeFunc(), "Waiting for gathering to start");
-        await WaitWhile(_isRunning.InvokeFunc, "Waiting for gathering to finish");
+
+        // 等待 Questionable 启动（15 秒超时）
+        var deadline = Environment.TickCount64 + 15000;
+        while (Environment.TickCount64 < deadline)
+        {
+            CancelToken.ThrowIfCancellationRequested();
+            if (_isRunning.InvokeFunc())
+                break;
+            await Task.Delay(250, CancelToken);
+        }
+        if (!_isRunning.InvokeFunc())
+            throw new Exception("Timed out waiting for Questionable to start");
+
+        // 等待 Questionable 完成（条件：Questionable 在跑 且 本 NPC 还有剩余交付次数）
+        // Questionable 可能顺带把交付做完，所以需要检查 RemainingTurnins
+        while (_isRunning.InvokeFunc() && npc.RemainingTurnins(1) > 0)
+        {
+            CancelToken.ThrowIfCancellationRequested();
+            await Task.Delay(250, CancelToken);
+        }
     }
 }

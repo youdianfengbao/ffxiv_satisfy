@@ -229,24 +229,31 @@ public static unsafe class Game
         var addon = RaptureAtkUnitManager.Instance()->GetAddonByName("SelectString");
         if (addon != null && addon->IsReady)
         {
-            AtkValue val = default;
-            val.SetInt(0);
-            addon->FireCallback(1, &val, true);
+            Service.Log.Debug("SelectTurnIn: firing callback int 0");
+            // 使用 Questionable 同款方法：addon->FireCallbackInt(0)
+            addon->FireCallbackInt(0);
         }
+    }
+
+    public static void SkipTalk()
+    {
+        var talk = RaptureAtkUnitManager.Instance()->GetAddonByName("Talk");
+        if (talk != null && talk->IsVisible && talk->IsReady)
+            talk->FireCallbackInt(0);
     }
 
     public static bool IsTurnInSupplyInProgress(NPCInfo npc)
     {
         var agent = AgentSatisfactionSupply.Instance();
-        var addon = GetFocusedAddonByID(agent->AddonId);
-        return agent->IsAgentActive() && agent->NpcInfo.Id == npc.Index + 1 && agent->NpcInfo.Valid && agent->NpcInfo.Initialized && addon != null && addon->IsVisible;
-    }
+        if (agent == null || !agent->IsAgentActive())
+            return false;
 
-    public static bool IsTurnInSupplyInProgress(uint npcIndex)
-    {
-        var agent = AgentSatisfactionSupply.Instance();
-        var addon = GetFocusedAddonByID(agent->AddonId);
-        return agent->IsAgentActive() && agent->NpcInfo.Id == npcIndex && agent->NpcInfo.Valid && agent->NpcInfo.Initialized && addon != null && addon->IsVisible;
+        var addonId = agent->AddonId;
+        if (addonId == 0)
+            return false;
+
+        var addon = RaptureAtkUnitManager.Instance()->GetAddonById((ushort)addonId);
+        return addon != null && addon->IsVisible;
     }
 
     public static void TurnInSupply(int slot)
