@@ -229,9 +229,11 @@ public static unsafe class Game
         var addon = RaptureAtkUnitManager.Instance()->GetAddonByName("SelectString");
         if (addon != null && addon->IsReady)
         {
-            Service.Log.Debug("SelectTurnIn: firing callback int 0");
-            // 使用 Questionable 同款方法：addon->FireCallbackInt(0)
-            addon->FireCallbackInt(0);
+            Service.Log.Debug("SelectTurnIn: firing callback (manual atkvalue)");
+            // 0.0.38 实测通过的手工写法; FireCallbackInt(0) 疑似在国服 SelectString 上关闭对话框但未真正选中
+            AtkValue val = default;
+            val.SetInt(0);
+            addon->FireCallback(1, &val, true);
         }
     }
 

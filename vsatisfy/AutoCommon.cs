@@ -88,6 +88,7 @@ public abstract class AutoCommon : TaskBase
                 {
                     CancelToken.ThrowIfCancellationRequested();
                     Game.SkipTalk();
+                    if (Game.IsSelectStringAddonActive()) Game.SelectTurnIn();
                     if (Game.IsTurnInSupplyInProgress(npc))
                         break;
                     await Task.Delay(250, CancelToken);
