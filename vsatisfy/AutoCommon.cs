@@ -94,7 +94,8 @@ public abstract class AutoCommon : TaskBase
             {
                 CancelToken.ThrowIfCancellationRequested();
                 Game.SkipTalk();
-                if (npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInSupplyInProgress(npc))
+                if (Game.IsSelectStringAddonActive()) Game.SelectTurnIn();
+                if (npc.RemainingTurnins(slot) <= 0 || (Game.IsTurnInSupplyInProgress(npc) && Game.IsTurnInSupplyReady()))
                     break;
                 await Task.Delay(250, CancelToken);
             }
@@ -102,7 +103,7 @@ public abstract class AutoCommon : TaskBase
             if (npc.RemainingTurnins(slot) <= 0)
                 break;
 
-            if (!Game.IsTurnInSupplyInProgress(npc))
+            if (!(Game.IsTurnInSupplyInProgress(npc) && Game.IsTurnInSupplyReady()))
                 throw new Exception("TurnIn: Supply 界面未就绪，无法继续交付");
 
             Game.TurnInSupply(slot);

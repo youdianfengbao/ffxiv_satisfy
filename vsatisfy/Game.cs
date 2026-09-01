@@ -256,6 +256,20 @@ public static unsafe class Game
         return addon != null && addon->IsVisible;
     }
 
+    public static bool IsTurnInSupplyReady()
+    {
+        var agent = AgentSatisfactionSupply.Instance();
+        if (agent == null || !agent->IsAgentActive())
+            return false;
+        if (!agent->NpcInfo.Valid || !agent->NpcInfo.Initialized)
+            return false;
+        var addonId = agent->AddonId;
+        if (addonId == 0)
+            return false;
+        var addon = RaptureAtkUnitManager.Instance()->GetAddonById((ushort)addonId);
+        return addon != null && addon->IsVisible && addon->IsReady;
+    }
+
     public static void TurnInSupply(int slot)
     {
         var agent = AgentSatisfactionSupply.Instance();
