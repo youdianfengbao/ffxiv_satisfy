@@ -26,10 +26,13 @@ public sealed class AutoGather(NPCInfo npc) : AutoCommon
         if (npc.RemainingTurnins(1) <= 0)
             return;
 
-        Status = "传送回 Npc 处";
-        // 图莱尤拉(1185): 禁止同区域二次以太之光传送, 多层地图寻路会出错
-        await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation,
-            allowSameZoneTeleport: npc.TerritoryId != 1185);
+        // 已在目标地图时跳过传送直接寻路(与 AutoCraft 一致); 不同区才传送
+        // allowSameZoneTeleport: false —— 图莱尤拉(1185)等多层地图禁止同区域二次以太之光传送, 否则寻路会出错
+        if (Service.ClientState.TerritoryType != npc.TerritoryId)
+        {
+            Status = "传送回 Npc 处";
+            await TeleportTo(npc.TerritoryId, npc.CraftData.TurnInLocation, allowSameZoneTeleport: false);
+        }
 
         Status = "前往 Npc 处";
         TrySprint();
