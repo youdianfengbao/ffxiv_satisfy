@@ -242,6 +242,32 @@ public static unsafe class Game
             talk->FireCallbackInt(0);
     }
 
+    // 任务失败时关闭挂起的对话/交付窗口, 用户无需手动 ESC
+    public static void CloseTurnInUi()
+    {
+        var selectString = RaptureAtkUnitManager.Instance()->GetAddonByName("SelectString");
+        if (selectString != null && selectString->IsVisible && selectString->IsReady)
+        {
+            Service.Log.Debug("CloseTurnInUi: closing SelectString");
+            selectString->FireCallbackInt(0);
+        }
+
+        var agent = AgentSatisfactionSupply.Instance();
+        if (agent != null && agent->IsAgentActive())
+        {
+            var addonId = agent->AddonId;
+            if (addonId != 0)
+            {
+                var addon = RaptureAtkUnitManager.Instance()->GetAddonById((ushort)addonId);
+                if (addon != null && addon->IsVisible && addon->IsReady)
+                {
+                    Service.Log.Debug("CloseTurnInUi: closing Supply addon");
+                    addon->FireCallbackInt(0);
+                }
+            }
+        }
+    }
+
     public static bool IsTurnInSupplyInProgress(NPCInfo npc)
     {
         var agent = AgentSatisfactionSupply.Instance();
@@ -261,13 +287,12 @@ public static unsafe class Game
         var agent = AgentSatisfactionSupply.Instance();
         if (agent == null || !agent->IsAgentActive())
             return false;
-        if (!agent->NpcInfo.Valid || !agent->NpcInfo.Initialized)
-            return false;
         var addonId = agent->AddonId;
         if (addonId == 0)
             return false;
         var addon = RaptureAtkUnitManager.Instance()->GetAddonById((ushort)addonId);
-        return addon != null && addon->IsVisible && addon->IsReady;
+        // Questionable 同款就绪判定: 只看 AtkValues, 不检查国服疑似恒 false 的 NpcInfo.Valid/Initialized
+        return addon != null && addon->AtkValues != null;
     }
 
     public static void TurnInSupply(int slot)

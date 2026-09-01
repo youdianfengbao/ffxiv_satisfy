@@ -34,6 +34,20 @@ public abstract class AutoCommon : TaskBase
     protected async Task TurnIn(NPCInfo npc, int slot)
     {
         using var scope = BeginScope("TurnIn");
+        try
+        {
+            await TurnInCore(npc, slot);
+        }
+        catch (Exception)
+        {
+            // 任务失败时把挂起的对话/交付窗口关掉, 用户无需手动 ESC
+            Game.CloseTurnInUi();
+            throw;
+        }
+    }
+
+    private async Task TurnInCore(NPCInfo npc, int slot)
+    {
         if (npc.CraftData is null || npc.RemainingTurnins(slot) is 0) return;
 
         // 第一次交互：与 NPC 交互并等待 SelectString 或 Supply 界面打开（最多重试 3 次）
