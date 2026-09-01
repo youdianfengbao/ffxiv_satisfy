@@ -269,7 +269,7 @@ public static unsafe class Game
             var addon = RaptureAtkUnitManager.Instance()->GetAddonByName("SatisfactionSupply");
             if (addon != null && addon->IsVisible && addon->IsReady)
             {
-                var addonName = System.Text.Encoding.UTF8.GetString(addon->Name.ToArray()).TrimEnd('\0');
+                var addonName = addon->NameString;
                 if (addonName == "SatisfactionSupply")
                 {
                     Service.Log.Debug("CloseTurnInUi: closing Supply addon");
@@ -277,7 +277,8 @@ public static unsafe class Game
                 }
                 else
                 {
-                    Service.Log.Warning($"CloseTurnInUi: 窗口名称不匹配，期望 SatisfactionSupply，实际 {addonName}");
+                    var nameBytes = addon->Name.ToArray();
+                    Service.Log.Warning($"CloseTurnInUi: 窗口名称不匹配，期望 SatisfactionSupply，实际 '{addonName}' hex={BitConverter.ToString(nameBytes)}");
                 }
             }
         });
@@ -295,10 +296,11 @@ public static unsafe class Game
             return false;
 
         // 【特征校验】验证窗口名称确实是 SatisfactionSupply
-        var addonName = System.Text.Encoding.UTF8.GetString(addon->Name.ToArray()).TrimEnd('\0');
+        var addonName = addon->NameString;
         if (addonName != "SatisfactionSupply")
         {
-            Service.Log.Warning($"IsTurnInSupplyInProgress: 窗口名称不匹配，期望 SatisfactionSupply，实际 {addonName}");
+            var nameBytes = addon->Name.ToArray();
+            Service.Log.Warning($"IsTurnInSupplyInProgress: 窗口名称不匹配，期望 SatisfactionSupply，实际 '{addonName}' hex={BitConverter.ToString(nameBytes)}");
             return false;
         }
 
@@ -317,10 +319,11 @@ public static unsafe class Game
             return false;
 
         // 【特征校验】验证窗口名称确实是 SatisfactionSupply（防止 GetAddonByName 返回错误窗口）
-        var addonName = System.Text.Encoding.UTF8.GetString(addon->Name.ToArray()).TrimEnd('\0');
+        var addonName = addon->NameString;
         if (addonName != "SatisfactionSupply")
         {
-            Service.Log.Warning($"IsTurnInSupplyReady: 窗口名称不匹配，期望 SatisfactionSupply，实际 {addonName}");
+            var nameBytes = addon->Name.ToArray();
+            Service.Log.Warning($"IsTurnInSupplyReady: 窗口名称不匹配，期望 SatisfactionSupply，实际 '{addonName}' hex={BitConverter.ToString(nameBytes)}");
             return false;
         }
 
@@ -358,10 +361,11 @@ public static unsafe class Game
                 return;
             }
 
-            var addonName = System.Text.Encoding.UTF8.GetString(addon->Name.ToArray()).TrimEnd('\0');
+            var addonName = addon->NameString;
             if (addonName != "SatisfactionSupply")
             {
-                Service.Log.Error($"TurnInSupply: 窗口名称不匹配，期望 SatisfactionSupply，实际 {addonName}");
+                var nameBytes = addon->Name.ToArray();
+                Service.Log.Error($"TurnInSupply: 窗口名称不匹配，期望 SatisfactionSupply，实际 '{addonName}' hex={BitConverter.ToString(nameBytes)}");
                 return;
             }
 
