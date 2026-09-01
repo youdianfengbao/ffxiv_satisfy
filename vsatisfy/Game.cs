@@ -300,13 +300,24 @@ public static unsafe class Game
             return false;
 
         var addon = RaptureAtkUnitManager.Instance()->GetAddonById((ushort)addonId);
-        // Questionable 同款就绪判定: 只看 AtkValues, 不检查国服疑似恒 false 的 NpcInfo.Valid/Initialized
-        if (addon != null && addon->AtkValues != null)
+        // 升级为数据已填充判定：要求 AtkValues 存在且有足够的数据项（>=4 表示有实际数据填充）
+        if (addon != null && addon->AtkValues != null && addon->AtkValuesCount >= 4)
+        {
+            // 数据已填充，记录关键值供实测核对
+            Service.Log.Debug($"IsTurnInSupplyReady: ready by addonId, AtkValuesCount={addon->AtkValuesCount}");
             return true;
+        }
 
         // 按窗口名直接查询，防止预激活期残留值拿错窗口
         var addonByName = RaptureAtkUnitManager.Instance()->GetAddonByName("SatisfactionSupply");
-        return addonByName != null && addonByName->AtkValues != null;
+        if (addonByName != null && addonByName->AtkValues != null && addonByName->AtkValuesCount >= 4)
+        {
+            // 数据已填充，记录关键值供实测核对
+            Service.Log.Debug($"IsTurnInSupplyReady: ready by addonName, AtkValuesCount={addonByName->AtkValuesCount}");
+            return true;
+        }
+
+        return false;
     }
 
     public static void TurnInSupply(int slot)
