@@ -42,27 +42,35 @@ public sealed class AutoGather(NPCInfo npc) : AutoCommon
         if (!_isRunning.InvokeFunc())
             throw new Exception("Timed out waiting for Questionable to start");
 
-        // 等待 Questionable 完成全部采集与交付（超时 30 分钟）
+        // 等待 Questionable 完成采集（超时 30 分钟）
         var completionDeadline = Environment.TickCount64 + 1800000; // 30 分钟
-        while (_isRunning.InvokeFunc() && npc.RemainingTurnins(1) > 0)
+        while (_isRunning.InvokeFunc())
         {
             CancelToken.ThrowIfCancellationRequested();
-            
+
             // 超时检查
             if (Environment.TickCount64 >= completionDeadline)
             {
                 Service.Log.Error("AutoGather: Questionable 执行超时（30 分钟），中止任务");
                 throw new Exception("Questionable execution timeout (30 minutes)");
             }
-            
+
             await Task.Delay(250, CancelToken);
         }
-        
-        // Questionable 完成后验证交付结果
+
+        // Questionable 停止后，若还有剩余交付次数则由 vsatisfy 自建交付收尾
         if (npc.RemainingTurnins(1) > 0)
         {
-            Service.Log.Error($"AutoGather: Questionable 完成但仍有剩余交付次数 {npc.RemainingTurnins(1)}，可能执行失败");
-            throw new Exception($"Questionable completed but {npc.RemainingTurnins(1)} turnins remaining");
+            Service.Log.Info($"AutoGather: Questionable 采集完成，剩余 {npc.RemainingTurnins(1)} 次交付，开始自建交付");
+            Status = "执行自建交付";
+            await TurnIn(npc, 1);
+        }
+
+        // 最终验证交付完成
+        if (npc.RemainingTurnins(1) > 0)
+        {
+            Service.Log.Error($"AutoGather: 交付完成后仍有剩余交付次数 {npc.RemainingTurnins(1)}，交付失败");
+            throw new Exception($"TurnIn completed but {npc.RemainingTurnins(1)} turnins remaining");
         }
     }
 }
