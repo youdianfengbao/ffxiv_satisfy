@@ -277,6 +277,14 @@ public static unsafe class Game
         values[0].SetInt(1);
         values[1].SetInt(slot);
         agent->ReceiveEvent(&res, values.GetPointer(0), 2, 0);
+
+        // 【细粒度日志】TurnInSupply 调用后的状态
+        unsafe
+        {
+            var ui = UIState.Instance();
+            var requestsCount = ui->NpcTrade.Requests.Count;
+            Service.Log.Debug($"TurnInSupply: 调用后 Requests.Count={requestsCount}, slot={slot}");
+        }
     }
 
     public static bool IsTurnInRequestInProgress(uint itemId)
@@ -299,6 +307,15 @@ public static unsafe class Game
         {
             Service.Log.Error($"Turn-in already in progress for slot {agent->SelectedTurnInSlot}");
             return;
+        }
+
+        // 【细粒度日志】Commit 前的请求状态
+        unsafe
+        {
+            var ui = UIState.Instance();
+            var requestsCount = ui->NpcTrade.Requests.Count;
+            var itemId = requestsCount > 0 ? ui->NpcTrade.Requests.Items[0].ItemId : 0;
+            Service.Log.Debug($"TurnInRequestCommit: 提交前 Requests.Count={requestsCount}, ItemId={itemId}, slot={slot}");
         }
 
         var res = new AtkValue();
@@ -331,6 +348,8 @@ public static unsafe class Game
         var addon = RaptureAtkUnitManager.Instance()->GetAddonById((ushort)addonId);
         if (addon != null && addon->IsVisible)
             addon->Close(false);
+
+        Service.Log.Debug($"TurnInRequestCommit: 提交完成");
     }
 
     public static bool IsTerritoryLoaded() => GameMain.Instance()->TerritoryLoadState == 2;

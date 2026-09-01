@@ -61,7 +61,14 @@ public sealed class AutoGather(NPCInfo npc) : AutoCommon
         // Questionable 停止后，若还有剩余交付次数则由 vsatisfy 自建交付收尾
         if (npc.RemainingTurnins(1) > 0)
         {
-            Service.Log.Info($"AutoGather: Questionable 采集完成，剩余 {npc.RemainingTurnins(1)} 次交付，开始自建交付");
+            Service.Log.Info($"AutoGather: Questionable 采集完成，剩余 {npc.RemainingTurnins(1)} 次交付，开始清场并自建交付");
+
+            // 【清场逻辑】无条件关闭 QST 留下的所有残留界面（Supply/SelectString/Talk）
+            Game.CloseTurnInUi();
+            Service.Log.Debug("AutoGather: 已关闭 QST 残留界面，等待 500ms 稳定");
+            await Task.Delay(500, CancelToken);
+
+            // 【自建交付】vsatisfy 自己交互 NPC 从头走 0.38 交付链
             Status = "执行自建交付";
             await TurnIn(npc, 1);
         }
