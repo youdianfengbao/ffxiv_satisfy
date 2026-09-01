@@ -272,19 +272,43 @@ public static unsafe class Game
     public static void TurnInSupply(int slot)
     {
         var agent = AgentSatisfactionSupply.Instance();
-        var res = new AtkValue();
-        Span<AtkValue> values = stackalloc AtkValue[2];
-        values[0].SetInt(1);
-        values[1].SetInt(slot);
-        agent->ReceiveEvent(&res, values.GetPointer(0), 2, 0);
+        if (agent == null || !agent->IsAgentActive())
+        {
+            Service.Log.Error("TurnInSupply: AgentSatisfactionSupply 未激活");
+            return;
+        }
 
-        // 【细粒度日志】TurnInSupply 调用后的状态
+        // 【Questionable 一步法】对 Addon 使用 FireCallback(2, [1, 1])
+        var addonId = agent->GetAddonId();
+        if (addonId == 0)
+        {
+            Service.Log.Error("TurnInSupply: AddonId 为 0");
+            return;
+        }
+
+        var addon = GetFocusedAddonByID(addonId);
+        if (addon == null || !addon->IsVisible)
+        {
+            Service.Log.Error($"TurnInSupply: Addon 不可见，addonId={addonId}");
+            return;
+        }
+
+        // 【细粒度日志】调用前状态
+        ushort remainingAllowancesBefore = agent->NpcData.RemainingAllowances;
+        Service.Log.Debug($"TurnInSupply: 调用前 RemainingAllowances={remainingAllowancesBefore}, ItemId={agent->Items[1].Id}, Collectability={agent->Items[1].Collectability1}, slot={slot}");
+
+        // 【Questionable 一触即发】FireCallback(2, [1, 1]) = 选择采集品槽位 + 确认提交
         unsafe
         {
-            var ui = UIState.Instance();
-            var requestsCount = ui->NpcTrade.Requests.Count;
-            Service.Log.Debug($"TurnInSupply: 调用后 Requests.Count={requestsCount}, slot={slot}");
+            AtkValue* pickGatheringItem = stackalloc AtkValue[]
+            {
+                new() { Type = AtkValueType.Int, Int = 1 },
+                new() { Type = AtkValueType.Int, Int = 1 }
+            };
+            addon->FireCallback(2, pickGatheringItem);
         }
+
+        Service.Log.Debug($"TurnInSupply: 已触发采集品交付回调");
     }
 
     public static bool IsTurnInRequestInProgress(uint itemId)

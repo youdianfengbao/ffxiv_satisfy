@@ -93,24 +93,21 @@ public abstract class AutoCommon : TaskBase
             if (npc.RemainingTurnins(slot) <= 0)
                 break;
 
-            // 【细粒度日志】TurnInSupply 前的状态
+            // 【Questionable 等待逻辑】记录前一次 RemainingAllowances
+            ushort previousAllowances = (ushort)npc.RemainingTurnins(slot);
+
+            // 【细粒度日志】TurnInSupply 调用前的状态
             var windowVisible = Game.IsTurnInSupplyInProgress(npc);
             Service.Log.Debug($"TurnIn: TurnInSupply 调用前，WindowVisible={windowVisible}, RemainingTurnins={npc.RemainingTurnins(slot)}");
 
             Game.TurnInSupply(slot);
 
-            // 【细粒度日志】TurnInSupply 后的状态
-            windowVisible = Game.IsTurnInSupplyInProgress(npc);
-            Service.Log.Debug($"TurnIn: TurnInSupply 调用后，WindowVisible={windowVisible}");
+            // 【Questionable 完成判定】等待 RemainingAllowances 变化（服务端确认）
+            await WaitWhile(() => npc.RemainingTurnins(slot) == previousAllowances && npc.RemainingTurnins(slot) > 0, "WaitAllowanceChange");
 
-            await WaitWhile(() => npc.RemainingTurnins(slot) > 0 && !Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]), "WaitHandIn");
-
-            // 【细粒度日志】Commit 前的请求状态
-            if (Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]))
-            {
-                Service.Log.Debug($"TurnIn: 交付请求进行中，准备提交，ItemId={npc.TurnInItems[slot]}");
-                Game.TurnInRequestCommit(slot);
-            }
+            // 【细粒度日志】RemainingAllowances 变化确认
+            var currentAllowances = npc.RemainingTurnins(slot);
+            Service.Log.Debug($"TurnIn: RemainingAllowances 变化，Previous={previousAllowances}, Current={currentAllowances}");
         }
 
         await WaitForCutscene();
