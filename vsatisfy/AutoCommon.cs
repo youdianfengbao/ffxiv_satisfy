@@ -129,7 +129,7 @@ public abstract class AutoCommon : TaskBase
         {
             Status = "交付中";
 
-            // 等待 Supply 界面数据就绪（15 秒超时），不强制要求窗口可见
+            // 等待 Supply 界面可见且就绪（15 秒超时）
             var deadline = Environment.TickCount64 + 15000;
             while (Environment.TickCount64 < deadline)
             {
@@ -137,7 +137,7 @@ public abstract class AutoCommon : TaskBase
                 Game.SkipTalk();
                 // 重选去重：只在 Supply agent 未激活或窗口无数据时才重选
                 if (Game.IsSelectStringAddonActive() && ShouldRetrySelectTurnIn()) Game.SelectTurnIn();
-                if (npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInSupplyReady())
+                if (npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInSupplyInProgress(npc))
                     break;
                 await Task.Delay(250, CancelToken);
             }
@@ -145,19 +145,19 @@ public abstract class AutoCommon : TaskBase
             if (npc.RemainingTurnins(slot) <= 0)
                 break;
 
-            // 数据未就绪时的处理：关窗重试或报错
-            if (!Game.IsTurnInSupplyReady())
+            // 窗口不可见时的处理：关窗重试或报错
+            if (!Game.IsTurnInSupplyInProgress(npc))
             {
                 if (retryCount < maxRetries)
                 {
-                    Service.Log.Warning($"TurnIn: Supply 界面数据未就绪，关窗重试（重试 {retryCount + 1}/{maxRetries}）");
+                    Service.Log.Warning($"TurnIn: Supply 窗口不可见，关窗重试（重试 {retryCount + 1}/{maxRetries}）");
                     Game.CloseTurnInUi();
                     retryCount++;
 
                     // 等待窗口关闭（1 秒）
                     await Task.Delay(1000, CancelToken);
 
-                    // 重新与 NPC 交互打开菜单（参照 AutoGather.Execute 的交互方式）
+                    // 重新与 NPC 交互打开菜单
                     ErrorIf(!Game.InteractWith(npc.CraftData.TurnInInstanceId), "Failed to interact with turn-in NPC for retry");
 
                     // 等待 SelectString 或 Supply 界面打开（15 秒超时）
@@ -193,68 +193,19 @@ public abstract class AutoCommon : TaskBase
                 }
                 else
                 {
-                    // 超时诊断日志（一次性，在超时路径中只执行一次）
-                    unsafe
-                    {
-                        var agent = AgentSatisfactionSupply.Instance();
-                        var agentActive = agent != null && agent->IsAgentActive();
-                        var agentAddonId = agentActive ? agent->GetAddonId() : 0;
-
-                        var addonByName = AtkStage.Instance()->RaptureAtkUnitManager->GetAddonByName("SatisfactionSupply");
-                        var addonByNameExists = addonByName != null;
-                        var addonByNameVisible = addonByNameExists && addonByName->IsVisible;
-                        var addonByNameReadyCount = addonByNameExists && addonByName->AtkValues != null ? addonByName->AtkValuesCount : 0;
-
-                        // 增强：按 ID 查到的窗口名字（确定 agent 的 128 实际指向谁）
-                        string addonByIdName = "null";
-                        if (agentAddonId != 0)
-                        {
-                            var addonById = AtkStage.Instance()->RaptureAtkUnitManager->GetAddonById((ushort)agentAddonId);
-                            if (addonById != null && addonById->Name != null)
-                            {
-                                addonByIdName = addonById->Name.ToString();
-                            }
-                        }
-
-                        // 增强：当前焦点 addon 名
-                        string focusedAddonName = "none";
-                        var focusedAddon = Game.GetFocusedAddonByID(0); // 获取焦点 addon
-                        if (focusedAddon != null && focusedAddon->Name != null)
-                        {
-                            focusedAddonName = focusedAddon->Name.ToString();
-                        }
-
-                        Service.Log.Error($"TurnIn: Supply 界面未就绪 - 诊断信息: AgentActive={agentActive}, AgentAddonId={agentAddonId}, " +
-                            $"AddonByIdName={addonByIdName}, " +
-                            $"AddonByNameExists={addonByNameExists}, AddonByNameVisible={addonByNameVisible}, AddonByNameReadyCount={addonByNameReadyCount}, " +
-                            $"FocusedAddonName={focusedAddonName}");
-                    }
-                    throw new Exception("TurnIn: Supply 界面未就绪，无法继续交付");
+                    Service.Log.Error("TurnIn: Supply 窗口不可见，超过重试次数，无法继续交付");
+                    throw new Exception("TurnIn: Supply 窗口不可见，超过重试次数");
                 }
             }
 
-            // 数据已就绪，检查窗口可见性并记录
-            if (!Game.IsTurnInSupplyInProgress(npc))
-            {
-                Service.Log.Warning("TurnIn: Supply 界面数据已就绪但窗口不可见，继续交付（可能不影响功能）");
-            }
-
+            // 窗口可见，执行交付
             Game.TurnInSupply(slot);
 
-            // 等待交付完成（30 秒超时）
-            deadline = Environment.TickCount64 + 30000;
-            while (Environment.TickCount64 < deadline)
-            {
-                CancelToken.ThrowIfCancellationRequested();
-                if (npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]))
-                    break;
-                await Task.Delay(250, CancelToken);
-            }
+            // 等待交付请求（0.0.0.38 节流机制：等待交付请求触发）
+            await WaitWhile(() => npc.RemainingTurnins(slot) > 0 && !Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]), "WaitHandIn");
 
             if (Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]))
                 Game.TurnInRequestCommit(slot);
-            else if (npc.RemainingTurnins(slot) > 0)
-                throw new Exception("TurnIn: WaitHandIn 超时，交付请求未正常触发");
 
             // 交付成功，重置重试计数
             retryCount = 0;

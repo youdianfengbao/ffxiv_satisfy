@@ -226,23 +226,13 @@ public static unsafe class Game
     // TODO: this really needs revision...
     public static void SelectTurnIn()
     {
-        // 【线程安全】使用 Service.Framework.RunOnFrameworkThread 确保在 UI 线程执行
-        Service.Framework.RunOnFrameworkThread(() =>
+        var addon = RaptureAtkUnitManager.Instance()->GetAddonByName("SelectString");
+        if (addon != null && addon->IsReady)
         {
-            var addon = RaptureAtkUnitManager.Instance()->GetAddonByName("SelectString");
-            if (addon != null && addon->IsReady)
-            {
-                Service.Log.Debug("SelectTurnIn: firing callback (manual atkvalue)");
-                // 0.0.38 实测通过的手工写法; FireCallbackInt(0) 疑似在国服 SelectString 上关闭对话框但未真正选中
-                AtkValue val = default;
-                val.SetInt(0);
-                addon->FireCallback(1, &val, true);
-            }
-            else
-            {
-                Service.Log.Warning("SelectTurnIn: SelectString 窗口不存在或未就绪");
-            }
-        });
+            AtkValue val = default;
+            val.SetInt(0);
+            addon->FireCallback(1, &val, true);
+        }
     }
 
     public static void SkipTalk()
@@ -255,135 +245,38 @@ public static unsafe class Game
     // 任务失败时关闭挂起的对话/交付窗口, 用户无需手动 ESC
     public static void CloseTurnInUi()
     {
-        // 【线程安全】使用 Service.Framework.RunOnFrameworkThread 确保在 UI 线程执行
-        Service.Framework.RunOnFrameworkThread(() =>
+        var selectString = RaptureAtkUnitManager.Instance()->GetAddonByName("SelectString");
+        if (selectString != null && selectString->IsVisible && selectString->IsReady)
         {
-            var selectString = RaptureAtkUnitManager.Instance()->GetAddonByName("SelectString");
-            if (selectString != null && selectString->IsVisible && selectString->IsReady)
-            {
-                Service.Log.Debug("CloseTurnInUi: closing SelectString");
-                selectString->FireCallbackInt(0);
-            }
+            selectString->FireCallbackInt(0);
+        }
 
-            // 【窗口身份双重验证】只使用 GetAddonByName，不再使用 agent->GetAddonId()
-            var addon = RaptureAtkUnitManager.Instance()->GetAddonByName("SatisfactionSupply");
-            if (addon != null && addon->IsVisible && addon->IsReady)
+        var agent = AgentSatisfactionSupply.Instance();
+        if (agent != null && agent->IsAgentActive())
+        {
+            var addon = GetFocusedAddonByID(agent->AddonId);
+            if (addon != null && addon->IsVisible)
             {
-                var addonName = addon->NameString;
-                if (addonName == "SatisfactionSupply")
-                {
-                    Service.Log.Debug("CloseTurnInUi: closing Supply addon");
-                    addon->FireCallbackInt(0);
-                }
-                else
-                {
-                    var nameBytes = addon->Name.ToArray();
-                    Service.Log.Warning($"CloseTurnInUi: 窗口名称不匹配，期望 SatisfactionSupply，实际 '{addonName}' hex={BitConverter.ToString(nameBytes)}");
-                }
+                addon->Close(true);
             }
-        });
+        }
     }
 
     public static bool IsTurnInSupplyInProgress(NPCInfo npc)
     {
         var agent = AgentSatisfactionSupply.Instance();
-        if (agent == null || !agent->IsAgentActive())
-            return false;
-
-        // 【窗口身份双重验证】只使用 GetAddonByName 获取窗口，不再信任 agent->GetAddonId()
-        var addon = RaptureAtkUnitManager.Instance()->GetAddonByName("SatisfactionSupply");
-        if (addon == null)
-            return false;
-
-        // 【特征校验】验证窗口名称确实是 SatisfactionSupply
-        var addonName = addon->NameString;
-        if (addonName != "SatisfactionSupply")
-        {
-            var nameBytes = addon->Name.ToArray();
-            Service.Log.Warning($"IsTurnInSupplyInProgress: 窗口名称不匹配，期望 SatisfactionSupply，实际 '{addonName}' hex={BitConverter.ToString(nameBytes)}");
-            return false;
-        }
-
-        return addon->IsVisible;
-    }
-
-    public static bool IsTurnInSupplyReady()
-    {
-        var agent = AgentSatisfactionSupply.Instance();
-        if (agent == null || !agent->IsAgentActive())
-            return false;
-
-        // 【窗口身份双重验证】只使用 GetAddonByName 获取窗口，不再信任 agent->GetAddonId()
-        var addon = RaptureAtkUnitManager.Instance()->GetAddonByName("SatisfactionSupply");
-        if (addon == null || addon->AtkValues == null || addon->AtkValuesCount < 4)
-            return false;
-
-        // 【特征校验】验证窗口名称确实是 SatisfactionSupply（防止 GetAddonByName 返回错误窗口）
-        var addonName = addon->NameString;
-        if (addonName != "SatisfactionSupply")
-        {
-            var nameBytes = addon->Name.ToArray();
-            Service.Log.Warning($"IsTurnInSupplyReady: 窗口名称不匹配，期望 SatisfactionSupply，实际 '{addonName}' hex={BitConverter.ToString(nameBytes)}");
-            return false;
-        }
-
-        // 【阈值收紧】根据实测，SatisfactionSupply 窗口的 AtkValuesCount 通常 >= 100（142 为实测值），4 太宽松
-        // 但为了兼容性，保留 4 作为最小值，添加警告日志
-        if (addon->AtkValuesCount < 100)
-        {
-            Service.Log.Debug($"IsTurnInSupplyReady: ready by addonName, AtkValuesCount={addon->AtkValuesCount} (偏小，可能窗口未完全加载)");
-        }
-        else
-        {
-            Service.Log.Debug($"IsTurnInSupplyReady: ready by addonName, AtkValuesCount={addon->AtkValuesCount}");
-        }
-
-        return true;
+        var addon = GetFocusedAddonByID(agent->AddonId);
+        return agent->IsAgentActive() && agent->NpcInfo.Id == npc.Index + 1 && agent->NpcInfo.Valid && agent->NpcInfo.Initialized && addon != null && addon->IsVisible;
     }
 
     public static void TurnInSupply(int slot)
     {
-        // 【线程安全】使用 Service.Framework.RunOnFrameworkThread 确保在 UI 线程执行
-        Service.Framework.RunOnFrameworkThread(() =>
-        {
-            var agent = AgentSatisfactionSupply.Instance();
-            if (agent == null || !agent->IsAgentActive())
-            {
-                Service.Log.Error("TurnInSupply: agent 未激活");
-                return;
-            }
-
-            // 【窗口身份双重验证】再次确认窗口身份，防止在等待期间窗口切换
-            var addon = RaptureAtkUnitManager.Instance()->GetAddonByName("SatisfactionSupply");
-            if (addon == null)
-            {
-                Service.Log.Error("TurnInSupply: SatisfactionSupply 窗口不存在");
-                return;
-            }
-
-            var addonName = addon->NameString;
-            if (addonName != "SatisfactionSupply")
-            {
-                var nameBytes = addon->Name.ToArray();
-                Service.Log.Error($"TurnInSupply: 窗口名称不匹配，期望 SatisfactionSupply，实际 '{addonName}' hex={BitConverter.ToString(nameBytes)}");
-                return;
-            }
-
-            // 【特征校验】验证 AtkValuesCount 足够大，避免对错误窗口注入
-            if (addon->AtkValues == null || addon->AtkValuesCount < 100)
-            {
-                Service.Log.Error($"TurnInSupply: 窗口 AtkValuesCount 异常（{addon->AtkValuesCount}），可能是错误的窗口");
-                return;
-            }
-
-            var res = new AtkValue();
-            Span<AtkValue> values = stackalloc AtkValue[2];
-            values[0].SetInt(1);
-            values[1].SetInt(slot);
-            agent->ReceiveEvent(&res, values.GetPointer(0), 2, 0);
-
-            Service.Log.Debug($"TurnInSupply: 已触发交付，slot={slot}");
-        });
+        var agent = AgentSatisfactionSupply.Instance();
+        var res = new AtkValue();
+        Span<AtkValue> values = stackalloc AtkValue[2];
+        values[0].SetInt(1);
+        values[1].SetInt(slot);
+        agent->ReceiveEvent(&res, values.GetPointer(0), 2, 0);
     }
 
     public static bool IsTurnInRequestInProgress(uint itemId)
