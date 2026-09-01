@@ -257,7 +257,7 @@ public static unsafe class Game
         var agent = AgentSatisfactionSupply.Instance();
         if (agent != null && agent->IsAgentActive())
         {
-            var addonId = agent->AddonId;
+            var addonId = agent->GetAddonId();
             if (addonId != 0)
             {
                 var addon = RaptureAtkUnitManager.Instance()->GetAddonById((ushort)addonId);
@@ -276,12 +276,17 @@ public static unsafe class Game
         if (agent == null || !agent->IsAgentActive())
             return false;
 
-        var addonId = agent->AddonId;
+        var addonId = agent->GetAddonId();
         if (addonId == 0)
             return false;
 
         var addon = RaptureAtkUnitManager.Instance()->GetAddonById((ushort)addonId);
-        return addon != null && addon->IsVisible;
+        if (addon != null && addon->IsVisible)
+            return true;
+
+        // 按窗口名直接查询，防止预激活期残留值拿错窗口
+        var addonByName = RaptureAtkUnitManager.Instance()->GetAddonByName("SatisfactionSupply");
+        return addonByName != null && addonByName->IsVisible;
     }
 
     public static bool IsTurnInSupplyReady()
@@ -289,12 +294,19 @@ public static unsafe class Game
         var agent = AgentSatisfactionSupply.Instance();
         if (agent == null || !agent->IsAgentActive())
             return false;
-        var addonId = agent->AddonId;
+
+        var addonId = agent->GetAddonId();
         if (addonId == 0)
             return false;
+
         var addon = RaptureAtkUnitManager.Instance()->GetAddonById((ushort)addonId);
         // Questionable 同款就绪判定: 只看 AtkValues, 不检查国服疑似恒 false 的 NpcInfo.Valid/Initialized
-        return addon != null && addon->AtkValues != null;
+        if (addon != null && addon->AtkValues != null)
+            return true;
+
+        // 按窗口名直接查询，防止预激活期残留值拿错窗口
+        var addonByName = RaptureAtkUnitManager.Instance()->GetAddonByName("SatisfactionSupply");
+        return addonByName != null && addonByName->AtkValues != null;
     }
 
     public static void TurnInSupply(int slot)

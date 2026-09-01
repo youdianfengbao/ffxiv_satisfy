@@ -20,7 +20,14 @@ public sealed class AutoGather(NPCInfo npc) : AutoCommon
             throw new Exception("Gather or turn-in data is not initialized");
 
         if (remainingTurnins - Game.NumItemsInInventory(npc.GatherData.GatherItemId, (short)npc.GatherData.CollectabilityLow) > 0)
+        {
             await Gather();
+        }
+        else
+        {
+            // 背包充足、跳过采集直接去交付的路径：检查并切换职业
+            await EnsureCorrectJob();
+        }
 
         // Questionable 可能顺带把交付做完，如果已交付完成则直接结束
         if (npc.RemainingTurnins(1) <= 0)
@@ -67,5 +74,51 @@ public sealed class AutoGather(NPCInfo npc) : AutoCommon
             CancelToken.ThrowIfCancellationRequested();
             await Task.Delay(250, CancelToken);
         }
+    }
+
+    private async Task EnsureCorrectJob()
+    {
+        if (npc.GatherData == null)
+            return;
+
+        var requiredJobId = npc.GatherData.ClassJobId;
+        if (requiredJobId == 0)
+            return; // 没有职业要求
+
+        // 检查当前职业
+        var currentJobId = GetCurrentJobId();
+        if (currentJobId == requiredJobId)
+            return; // 职业已正确，无需切换
+
+        Service.Log.Warning($"AutoGather: 当前职业 {currentJobId} 与所需职业 {requiredJobId} 不匹配，尝试切换职业");
+
+        // 使用 ExecuteGeneralAction(13) 切换职业（职业切换通用动作）
+        if (!Game.UseAction(FFXIVClientStructs.FFXIV.Client.Game.ActionType.GeneralAction, 13))
+        {
+            Service.Log.Warning("AutoGather: 无法切换职业（可能不在安全区域）");
+            return;
+        }
+
+        // 等待职业切换生效（最多5秒）
+        var deadline = Environment.TickCount64 + 5000;
+        while (Environment.TickCount64 < deadline)
+        {
+            CancelToken.ThrowIfCancellationRequested();
+            await Task.Delay(250, CancelToken);
+
+            var newJobId = GetCurrentJobId();
+            if (newJobId == requiredJobId)
+            {
+                Service.Log.Info($"AutoGather: 成功切换到职业 {newJobId}");
+                return;
+            }
+        }
+
+        Service.Log.Warning($"AutoGather: 切换职业超时（当前仍为 {GetCurrentJobId()}）");
+    }
+
+    private unsafe uint GetCurrentJobId()
+    {
+        return Service.PlayerState.ClassJob.RowId;
     }
 }

@@ -2,6 +2,8 @@ using clib.Extensions;
 using clib.TaskSystem;
 using Dalamud.Game.ClientState.Conditions;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
+using FFXIVClientStructs.FFXIV.Component.GUI;
 using System.Numerics;
 using System.Threading.Tasks;
 
@@ -119,7 +121,24 @@ public abstract class AutoCommon : TaskBase
                 break;
 
             if (!(Game.IsTurnInSupplyInProgress(npc) && Game.IsTurnInSupplyReady()))
+            {
+                // 超时诊断日志（一次性，在超时路径中只执行一次）
+                unsafe
+                {
+                    var agent = AgentSatisfactionSupply.Instance();
+                    var agentActive = agent != null && agent->IsAgentActive();
+                    var agentAddonId = agentActive ? agent->GetAddonId() : 0;
+
+                    var addonByName = AtkStage.Instance()->RaptureAtkUnitManager->GetAddonByName("SatisfactionSupply");
+                    var addonByNameExists = addonByName != null;
+                    var addonByNameVisible = addonByNameExists && addonByName->IsVisible;
+                    var addonByNameReady = addonByNameExists && addonByName->AtkValues != null;
+
+                    Service.Log.Error($"TurnIn: Supply 界面未就绪 - 诊断信息: AgentActive={agentActive}, AgentAddonId={agentAddonId}, " +
+                        $"AddonByNameExists={addonByNameExists}, AddonByNameVisible={addonByNameVisible}, AddonByNameReady={addonByNameReady}");
+                }
                 throw new Exception("TurnIn: Supply 界面未就绪，无法继续交付");
+            }
 
             Game.TurnInSupply(slot);
 

@@ -1,9 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Dalamud.NET.Sdk/15.0.0">
-		<PropertyGroup>
-			<Version>0.0.0.43</Version>
-			<LangVersion>preview</LangVersion>
-		</PropertyGroup>
+	<?xml version="1.0" encoding="utf-8"?>
+	<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+			<PropertyGroup>
+				<Version>0.0.0.44</Version>
+				<LangVersion>preview</LangVersion>
+			</PropertyGroup>
 
 	<PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
 		<DalamudLibPath>$(DALAMUD_HOME)/</DalamudLibPath>
