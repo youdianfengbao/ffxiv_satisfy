@@ -121,94 +121,29 @@ public abstract class AutoCommon : TaskBase
             }
         }
 
-        // 重试计数器：最多重试 2 轮
-        var retryCount = 0;
-        const int maxRetries = 2;
-
         while (npc.RemainingTurnins(slot) > 0)
         {
             Status = "交付中";
-
-            // 等待 Supply 界面可见且就绪（15 秒超时）
-            var deadline = Environment.TickCount64 + 15000;
-            while (Environment.TickCount64 < deadline)
-            {
-                CancelToken.ThrowIfCancellationRequested();
-                Game.SkipTalk();
-                // 重选去重：只在 Supply agent 未激活或窗口无数据时才重选
-                if (Game.IsSelectStringAddonActive() && ShouldRetrySelectTurnIn()) Game.SelectTurnIn();
-                if (npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInSupplyInProgress(npc))
-                    break;
-                await Task.Delay(250, CancelToken);
-            }
-
+            // 【0.0.0.38 关键等待】每次循环开始先等待 Supply 窗口可见（清除上次交付残留状态）
+            await WaitUntilSkipping(() => npc.RemainingTurnins(slot) <= 0 || Game.IsTurnInSupplyInProgress(npc), "WaitDialog", UiSkipOptions.Talk);
             if (npc.RemainingTurnins(slot) <= 0)
                 break;
 
-            // 窗口不可见时的处理：关窗重试或报错
-            if (!Game.IsTurnInSupplyInProgress(npc))
-            {
-                if (retryCount < maxRetries)
-                {
-                    Service.Log.Warning($"TurnIn: Supply 窗口不可见，关窗重试（重试 {retryCount + 1}/{maxRetries}）");
-                    Game.CloseTurnInUi();
-                    retryCount++;
-
-                    // 等待窗口关闭（1 秒）
-                    await Task.Delay(1000, CancelToken);
-
-                    // 重新与 NPC 交互打开菜单
-                    ErrorIf(!Game.InteractWith(npc.CraftData.TurnInInstanceId), "Failed to interact with turn-in NPC for retry");
-
-                    // 等待 SelectString 或 Supply 界面打开（15 秒超时）
-                    deadline = Environment.TickCount64 + 15000;
-                    while (Environment.TickCount64 < deadline)
-                    {
-                        CancelToken.ThrowIfCancellationRequested();
-                        Game.SkipTalk();
-                        if (Game.IsTurnInSupplyInProgress(npc) || Game.IsSelectStringAddonActive())
-                            break;
-                        await Task.Delay(250, CancelToken);
-                    }
-
-                    // 若弹出对话选项菜单，选择第一项（交换道具）
-                    if (Game.IsSelectStringAddonActive())
-                    {
-                        Game.SelectTurnIn();
-
-                        // 等待 Supply 界面打开（15 秒超时）
-                        deadline = Environment.TickCount64 + 15000;
-                        while (Environment.TickCount64 < deadline)
-                        {
-                            CancelToken.ThrowIfCancellationRequested();
-                            Game.SkipTalk();
-                            if (Game.IsTurnInSupplyInProgress(npc))
-                                break;
-                            await Task.Delay(250, CancelToken);
-                        }
-                    }
-
-                    // 重新开始交付循环
-                    continue;
-                }
-                else
-                {
-                    Service.Log.Error("TurnIn: Supply 窗口不可见，超过重试次数，无法继续交付");
-                    throw new Exception("TurnIn: Supply 窗口不可见，超过重试次数");
-                }
-            }
-
-            // 窗口可见，执行交付
             Game.TurnInSupply(slot);
 
-            // 等待交付请求（0.0.0.38 节流机制：等待交付请求触发）
+            // 【调试日志】WaitHandIn 进入状态
+            var requestInProgress = Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]);
+            Service.Log.Debug($"TurnIn: WaitHandIn 开始，RemainingTurnins={npc.RemainingTurnins(slot)}, RequestInProgress={requestInProgress}");
+
+            // 【0.0.0.38 节流机制】等待交付请求触发（条件：还有剩余 且 请求未进行中 → 等请求出现）
             await WaitWhile(() => npc.RemainingTurnins(slot) > 0 && !Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]), "WaitHandIn");
+
+            // 【调试日志】WaitHandIn 退出状态
+            requestInProgress = Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]);
+            Service.Log.Debug($"TurnIn: WaitHandIn 结束，RemainingTurnins={npc.RemainingTurnins(slot)}, RequestInProgress={requestInProgress}");
 
             if (Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]))
                 Game.TurnInRequestCommit(slot);
-
-            // 交付成功，重置重试计数
-            retryCount = 0;
         }
 
         await WaitForCutscene();
