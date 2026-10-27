@@ -47,10 +47,10 @@ public static class Movement
     /// 寻路移动到目标点。到达 stopDistance 内即返回；多次重算仍无法到达时抛异常（与 clib MoveTo 失败语义一致）。
     /// </summary>
     /// <param name="dest">目标点（世界坐标）</param>
-    /// <param name="stopDistance">停止距离（米）</param>
+    /// <param name="stopDistance">停止距离（米），默认 6（NPC 对话交互距离内，避免柜台后 NPC 寻路绕柜台/撞柜台）</param>
     /// <param name="allowFly">允许飞行路径（仅当玩家已坐骑/飞行中才使用飞行寻路，否则自动退回步行）</param>
     /// <param name="ct">取消令牌（任务停止时中断）</param>
-    public static async Task MoveTo(Vector3 dest, float stopDistance = 1.3f, bool allowFly = false, CancellationToken ct = default)
+    public static async Task MoveTo(Vector3 dest, float stopDistance = 6f, bool allowFly = false, CancellationToken ct = default)
     {
         await WaitNavmeshReady(ct);
 

@@ -2,6 +2,7 @@ using clib.Extensions;
 using clib.TaskSystem;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Ipc;
+using Dalamud.Plugin.Ipc.Exceptions;
 using System.Threading.Tasks;
 
 namespace Satisfy;
@@ -14,6 +15,9 @@ public sealed class AutoCraft(NPCInfo npc) : AutoCommon
 
     protected override async Task Execute()
     {
+        // 最早入口检测 Artisan 可用性：不可用则不执行任何后续动作（不传送/不寻路/不购买/不制作）
+        EnsureArtisanAvailable();
+
         var remainingTurnins = npc.RemainingTurnins(0);
         if (remainingTurnins <= 0)
             return; // nothing to do
@@ -122,4 +126,23 @@ public sealed class AutoCraft(NPCInfo npc) : AutoCommon
     private void ArtisanCraft(ushort recipe, int count) => _artisanCraft.InvokeAction(recipe, count);
     private bool ArtisanInProgress() => _artisanInProgress.InvokeFunc();
 
+    /// <summary>
+    /// 检测 Artisan IPC 是否可用（provider 是否已注册，即插件已安装且已加载）。
+    /// 检测方式与 vnavmesh（Movement）/Questionable（AutoGather）对齐：调用只读 IPC
+    /// （Artisan.GetEnduranceStatus），provider 未注册时抛 IpcNotReadyError。
+    /// </summary>
+    private void EnsureArtisanAvailable()
+    {
+        try
+        {
+            _artisanInProgress.InvokeFunc();
+        }
+        catch (IpcNotReadyError)
+        {
+            Status = "缺少 Artisan 插件";
+            Service.Log.Error("AutoCraft: 缺少 Artisan 插件（未安装或未启用），无法自动制作，任务已阻止启动");
+            Service.Chat.PrintError("[vsatisfy] 缺少 Artisan 插件：自动制作交付需要安装并启用 Artisan，任务未启动。");
+            throw new Exception("缺少 Artisan 插件：请先安装并启用 Artisan 后重试");
+        }
+    }
 }

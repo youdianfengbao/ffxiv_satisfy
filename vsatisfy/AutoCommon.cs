@@ -47,9 +47,10 @@ public abstract class AutoCommon : TaskBase
     /// GoalRadiusHeuristic 负启发式，在障碍物场景会撞墙）。失败时抛异常，语义与 clib MoveTo 一致。
     /// </summary>
     /// <param name="dest">目标点（世界坐标）</param>
-    /// <param name="stopDistance">停止距离（米），默认 1.3（参考 Questionable 交互停止距离）</param>
+    /// <param name="stopDistance">停止距离（米），默认 6（NPC 对话交互距离内即停再交互；
+    /// 大部分交付/供应商 NPC 在柜台后方，更近的停止距离会导致寻路试图绕柜台/撞柜台）</param>
     /// <param name="allowFly">允许飞行路径（仅已坐骑/飞行时生效，否则退回步行）</param>
-    protected Task MoveToDestination(Vector3 dest, float stopDistance = 1.3f, bool allowFly = false) =>
+    protected Task MoveToDestination(Vector3 dest, float stopDistance = 6f, bool allowFly = false) =>
         Movement.MoveTo(dest, stopDistance, allowFly, CancelToken);
 
     protected async Task TurnIn(NPCInfo npc, int slot)
