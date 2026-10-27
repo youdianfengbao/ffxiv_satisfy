@@ -269,33 +269,52 @@ public static unsafe class Game
         return agent->IsAgentActive() && agent->NpcInfo.Id == npc.Index + 1 && agent->NpcInfo.Valid && agent->NpcInfo.Initialized && addon != null && addon->IsVisible;
     }
 
+    // 【制作/钓鱼交付·两步法第一步】ReceiveEvent(1, slot) 建立交付请求（0.48/0.38 在 AutoCraft 上实测通过的原文）
     public static void TurnInSupply(int slot)
+    {
+        var agent = AgentSatisfactionSupply.Instance();
+        var res = new AtkValue();
+        Span<AtkValue> values = stackalloc AtkValue[2];
+        values[0].SetInt(1);
+        values[1].SetInt(slot);
+        agent->ReceiveEvent(&res, values.GetPointer(0), 2, 0);
+
+        // 【细粒度日志】TurnInSupply 调用后的状态
+        unsafe
+        {
+            var ui = UIState.Instance();
+            var requestsCount = ui->NpcTrade.Requests.Count;
+            Service.Log.Debug($"TurnInSupply: 调用后 Requests.Count={requestsCount}, slot={slot}");
+        }
+    }
+
+    // 【采集交付·一步法】FireCallback(2, [1, 1]) 选择采集品槽位(1)+立即确认，等 RemainingAllowances 变化（0.49 对 AutoGather 实测通过，勿与制作路径混用）
+    public static void TurnInSupplyGather()
     {
         var agent = AgentSatisfactionSupply.Instance();
         if (agent == null || !agent->IsAgentActive())
         {
-            Service.Log.Error("TurnInSupply: AgentSatisfactionSupply 未激活");
+            Service.Log.Error("TurnInSupplyGather: AgentSatisfactionSupply 未激活");
             return;
         }
 
-        // 【Questionable 一步法】对 Addon 使用 FireCallback(2, [1, 1])
         var addonId = agent->GetAddonId();
         if (addonId == 0)
         {
-            Service.Log.Error("TurnInSupply: AddonId 为 0");
+            Service.Log.Error("TurnInSupplyGather: AddonId 为 0");
             return;
         }
 
         var addon = GetFocusedAddonByID(addonId);
         if (addon == null || !addon->IsVisible)
         {
-            Service.Log.Error($"TurnInSupply: Addon 不可见，addonId={addonId}");
+            Service.Log.Error($"TurnInSupplyGather: Addon 不可见，addonId={addonId}");
             return;
         }
 
         // 【细粒度日志】调用前状态
         ushort remainingAllowancesBefore = agent->NpcData.RemainingAllowances;
-        Service.Log.Debug($"TurnInSupply: 调用前 RemainingAllowances={remainingAllowancesBefore}, ItemId={agent->Items[1].Id}, Collectability={agent->Items[1].Collectability1}, slot={slot}");
+        Service.Log.Debug($"TurnInSupplyGather: 调用前 RemainingAllowances={remainingAllowancesBefore}, ItemId={agent->Items[1].Id}, Collectability={agent->Items[1].Collectability1}");
 
         // 【Questionable 一触即发】FireCallback(2, [1, 1]) = 选择采集品槽位 + 确认提交
         unsafe
@@ -308,7 +327,7 @@ public static unsafe class Game
             addon->FireCallback(2, pickGatheringItem);
         }
 
-        Service.Log.Debug($"TurnInSupply: 已触发采集品交付回调");
+        Service.Log.Debug($"TurnInSupplyGather: 已触发采集品交付回调");
     }
 
     public static bool IsTurnInRequestInProgress(uint itemId)

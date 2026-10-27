@@ -12,6 +12,9 @@ namespace Satisfy;
 // common automation utilities
 public abstract class AutoCommon : TaskBase
 {
+    /// <summary>SatisfactionSupply 的采集品槽位索引（TurnInItems[1]，AutoGather 用；制作=0，钓鱼=2）</summary>
+    private const int GatherSlot = 1;
+
     /// <summary>尝试使用冲刺, 冷却中则忽略</summary>
     protected static void TrySprint()
     {
@@ -94,21 +97,43 @@ public abstract class AutoCommon : TaskBase
             if (npc.RemainingTurnins(slot) <= 0)
                 break;
 
-            // 【Questionable 等待逻辑】记录前一次 RemainingAllowances
-            ushort previousAllowances = (ushort)npc.RemainingTurnins(slot);
+            if (slot == GatherSlot)
+            {
+                // 【采集交付】Questionable 一步法：FireCallback(2,[1,1]) 一触即发 + 等待 RemainingAllowances 变化
+                // （0.49 对 AutoGather 采集交付实测通过）
+                ushort previousAllowances = (ushort)npc.RemainingTurnins(slot);
 
-            // 【细粒度日志】TurnInSupply 调用前的状态
-            var windowVisible = Game.IsTurnInSupplyInProgress(npc);
-            Service.Log.Debug($"TurnIn: TurnInSupply 调用前，WindowVisible={windowVisible}, RemainingTurnins={npc.RemainingTurnins(slot)}");
+                Service.Log.Debug($"TurnIn: TurnInSupplyGather 调用前，RemainingTurnins={npc.RemainingTurnins(slot)}");
+                Game.TurnInSupplyGather();
 
-            Game.TurnInSupply(slot);
+                // 【Questionable 完成判定】等待 RemainingAllowances 变化（服务端确认）
+                await WaitWhile(() => npc.RemainingTurnins(slot) == previousAllowances && npc.RemainingTurnins(slot) > 0, "WaitAllowanceChange");
 
-            // 【Questionable 完成判定】等待 RemainingAllowances 变化（服务端确认）
-            await WaitWhile(() => npc.RemainingTurnins(slot) == previousAllowances && npc.RemainingTurnins(slot) > 0, "WaitAllowanceChange");
+                Service.Log.Debug($"TurnIn: RemainingAllowances 变化，Previous={previousAllowances}, Current={npc.RemainingTurnins(slot)}");
+            }
+            else
+            {
+                // 【制作/钓鱼交付】两步法：TurnInSupply(ReceiveEvent) 建请求 → WaitHandIn → TurnInRequestCommit 提交
+                // （0.48/0.38 在 AutoCraft 制作交付上实测通过；一步法写死采集槽位 1，制作交付不可用）
+                // 【细粒度日志】TurnInSupply 前的状态
+                var windowVisible = Game.IsTurnInSupplyInProgress(npc);
+                Service.Log.Debug($"TurnIn: TurnInSupply 调用前，WindowVisible={windowVisible}, RemainingTurnins={npc.RemainingTurnins(slot)}");
 
-            // 【细粒度日志】RemainingAllowances 变化确认
-            var currentAllowances = npc.RemainingTurnins(slot);
-            Service.Log.Debug($"TurnIn: RemainingAllowances 变化，Previous={previousAllowances}, Current={currentAllowances}");
+                Game.TurnInSupply(slot);
+
+                // 【细粒度日志】TurnInSupply 后的状态
+                windowVisible = Game.IsTurnInSupplyInProgress(npc);
+                Service.Log.Debug($"TurnIn: TurnInSupply 调用后，WindowVisible={windowVisible}");
+
+                await WaitWhile(() => npc.RemainingTurnins(slot) > 0 && !Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]), "WaitHandIn");
+
+                // 【细粒度日志】Commit 前的请求状态
+                if (Game.IsTurnInRequestInProgress(npc.TurnInItems[slot]))
+                {
+                    Service.Log.Debug($"TurnIn: 交付请求进行中，准备提交，ItemId={npc.TurnInItems[slot]}");
+                    Game.TurnInRequestCommit(slot);
+                }
+            }
         }
 
         await WaitForCutscene();
